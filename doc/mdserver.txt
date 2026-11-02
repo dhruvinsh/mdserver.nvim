@@ -38,14 +38,21 @@ $MDSERVER_CDN replaces the CDN (`https://cdn.jsdelivr.net/npm`).
 3. COMMANDS                                                 *mdserver-commands*
 
                                                                    *:MdServer*
-:MdServer [action] [arg]
+:MdServer[!] [action][!] [arg]
+
+The bang can follow the command or the action: `:MdServer! open` and
+`:MdServer open!` are the same.
 
   (none)          Start, or open the browser on the current buffer.
   start [root]    Serve [root], default: project root of the current buffer
-                  (see `root_markers`). Restarts when serving another root.
+                  (see `root_markers`). Restarts when serving another root,
+                  keeping the host of the running server.
   stop            Stop the server.
   toggle          Start or stop.
-  open            Open the browser on the current markdown buffer.
+  open[!]         Open the browser on the current markdown buffer. Binds
+                  the configured `host`, with ! 0.0.0.0 so the server is
+                  reachable from another machine. Restarts the server on the
+                  same root when the host changes.
   status          Show the URL, the root and the connected browser tabs.
   install[!]      Install the browser libraries. With ! download them again.
 
@@ -75,17 +82,23 @@ from the network.
 5. LUA API                                                       *mdserver-api*
 
 require("mdserver").setup({opts})                          *mdserver.setup()*
-require("mdserver").start({root})                          *mdserver.start()*
+require("mdserver").start({root}, {opts})                  *mdserver.start()*
+    {opts}: `{ host = string }` address to bind, default: the host of the
+    running server, else the configured `host`
 require("mdserver").stop({opts})                            *mdserver.stop()*
     {opts}: `{ silent = boolean }`
 require("mdserver").toggle()                              *mdserver.toggle()*
-require("mdserver").open()                                  *mdserver.open()*
+require("mdserver").open({opts})                            *mdserver.open()*
+    {opts}: `{ global = boolean }` bind to 0.0.0.0 instead of the
+    configured `host`
 require("mdserver").status()                              *mdserver.status()*
 require("mdserver").install({opts})                      *mdserver.install()*
     {opts}: `{ force = boolean }`
 require("mdserver").is_running()                      *mdserver.is_running()*
 require("mdserver").url()                                    *mdserver.url()*
     URL of the running server, or nil.
+require("mdserver").host()                                  *mdserver.host()*
+    Address the running server is bound to, or nil.
 require("mdserver").version                              *mdserver.version*
     Version string of the plugin, e.g. "1.0.0".
 

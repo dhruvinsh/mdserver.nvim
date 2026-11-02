@@ -46,7 +46,8 @@ Calling `setup()` is optional, the plugin works with the defaults.
   build = "build.lua", -- runs on install and update
   cmd = "MdServer",
   keys = {
-    { "<leader>tm", "<cmd>MdServer toggle<cr>", desc = "Markdown project server" },
+    { "<leader>tm", "<cmd>MdServer open<cr>", desc = "Markdown project server" },
+    { "<leader>tM", "<cmd>MdServer open!<cr>", desc = "Markdown project server (network)" },
   },
   opts = {},
 }
@@ -121,6 +122,7 @@ above and reload the page.
 | `:MdServer start [root]`  | serve `root` (default: project root of the current buffer)     |
 | `:MdServer stop`          | stop the server                                                |
 | `:MdServer toggle`        | start / stop                                                   |
+| `:MdServer open[!]`       | open the browser; `!` serves on `0.0.0.0` (the network)        |
 | `:MdServer status`        | URL, root, connected tabs                                      |
 | `:MdServer install[!]`    | install the browser libraries (`!` downloads again)            |
 

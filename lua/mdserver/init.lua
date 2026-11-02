@@ -16,6 +16,7 @@ M.version = require("mdserver.version")
 ---@class mdserver.State: mdserver.Session
 ---@field server uv.uv_tcp_t
 ---@field url string
+---@field host string address the server is bound to
 ---@field timer uv.uv_timer_t debounces buffer change events
 ---@field pending table<string, true> paths changed since the last refresh
 ---@field current? string last path the browser was told to follow
@@ -131,25 +132,42 @@ function M.url()
   return state and state.url
 end
 
---- Open the browser on the current markdown buffer, or the project page.
-function M.open()
-  if not state then
-    return M.start()
-  end
-  local url = state.url .. "/" .. Http.encode_path(buffer_path(0) or "")
+---@return string? host address the running server is bound to
+function M.host()
+  return state and state.host
+end
+
+--- Point the browser at the current markdown buffer, or the project page.
+---@param s mdserver.State
+local function show(s)
+  local url = s.url .. "/" .. Http.encode_path(buffer_path(0) or "")
   if Config.options.open_browser then
     open_url(url)
   end
   notify(url)
 end
 
---- Start serving `root` (default: the project of the current buffer). When the
---- server already serves that root, only opens the browser.
+--- Open the browser on the current markdown buffer, starting the server if needed.
+--- The server is (re)bound to the configured host, or to all interfaces with
+--- `global`; the served root does not change.
+---@param opts? { global?: boolean } bind to 0.0.0.0 instead of the configured host
+function M.open(opts)
+  local host = opts and opts.global and "0.0.0.0" or Config.options.host
+  if state and state.host == host then
+    return show(state)
+  end
+  M.start(state and state.root, { host = host })
+end
+
+--- Start serving `root` (default: the project of the current buffer) and open
+--- the browser. A running server keeps its host unless `opts.host` is given.
 ---@param root? string
-function M.start(root)
+---@param opts? { host?: string } address to bind
+function M.start(root, opts)
   root = root and (uv.fs_realpath(vim.fs.normalize(root)) or vim.fs.normalize(root)) or Project.detect_root(0)
-  if state and state.root == root then
-    return M.open()
+  local host = opts and opts.host or state and state.host or Config.options.host
+  if state and state.root == root and state.host == host then
+    return show(state)
   end
   M.stop({ silent = true })
 
@@ -166,32 +184,35 @@ function M.start(root)
   ---@type mdserver.Session
   local session = { root = root, streams = {} }
   local handler = Server.handler(session)
-  local opts = Config.options
-  local port = opts.port or default_port(root)
-  local server, err = Http.listen(opts.host, port, handler)
-  if not server and not opts.port then
+  local port = Config.options.port or default_port(root)
+  local server, err = Http.listen(host, port, handler)
+  if not server and not Config.options.port then
     -- the derived port is taken, let the OS pick one
-    server, err = Http.listen(opts.host, 0, handler)
+    server, err = Http.listen(host, 0, handler)
   end
   if not server then
-    return notify(("cannot listen on %s:%d: %s"):format(opts.host, port, err), vim.log.levels.ERROR)
+    return notify(("cannot listen on %s:%d: %s"):format(host, port, err), vim.log.levels.ERROR)
   end
 
-  local host = opts.host
-  if host == "0.0.0.0" or host == "::" then
-    host = uv.os_gethostname()
-  elseif host:find(":") then
-    host = "[" .. host .. "]"
+  local display = host
+  if display == "0.0.0.0" or display == "::" then
+    display = uv.os_gethostname()
+  elseif display:find(":") then
+    display = "[" .. display .. "]"
   end
   local s = session --[[@as mdserver.State]]
   s.server = server
-  s.url = ("http://%s:%d"):format(host, server:getsockname().port)
+  s.host = host
+  s.url = ("http://%s:%d"):format(display, server:getsockname().port)
   s.timer = assert(uv.new_timer())
   s.pending = {}
   state = s
   state.current = buffer_path(0)
   create_autocmds()
-  M.open()
+  if not Http.is_loopback(host) then
+    notify(("listening on %s: %s is reachable from the network"):format(host, root), vim.log.levels.WARN)
+  end
+  show(s)
 end
 
 ---@param opts? { silent?: boolean }

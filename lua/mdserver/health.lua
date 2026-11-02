@@ -42,14 +42,14 @@ function M.check()
 
   health.start("mdserver: server")
   local mdserver = require("mdserver")
-  local config = require("mdserver.config").options
   if mdserver.is_running() then
     health.ok("running at " .. mdserver.url())
   else
     health.info("not running")
   end
-  if config.host ~= "127.0.0.1" and config.host ~= "localhost" and config.host ~= "::1" then
-    health.warn(("listening on %s: the project files are reachable from the network"):format(config.host))
+  local host = mdserver.host() or require("mdserver.config").options.host
+  if not require("mdserver.http").is_loopback(host) then
+    health.warn(("listening on %s: the project files are reachable from the network"):format(host))
   end
 end
 

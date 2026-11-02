@@ -171,6 +171,13 @@ local function on_connection(client, handler)
   end)
 end
 
+--- Whether `host` only accepts connections from this machine.
+---@param host string
+---@return boolean
+function M.is_loopback(host)
+  return host == "localhost" or host == "::1" or host:match("^127%.") ~= nil
+end
+
 --- Listen on host:port, port 0 picks a free one.
 ---@param host string
 ---@param port integer
