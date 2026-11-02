@@ -1,0 +1,104 @@
+*mdserver.txt*  Browse the markdown files of a project in the browser
+
+==============================================================================
+CONTENTS                                                    *mdserver-contents*
+
+  1. Introduction ............................... |mdserver-introduction|
+  2. Installation ............................... |mdserver-installation|
+  3. Commands ................................... |mdserver-commands|
+  4. Configuration .............................. |mdserver-configuration|
+  5. Lua API .................................... |mdserver-api|
+  6. Browser .................................... |mdserver-browser|
+
+==============================================================================
+1. INTRODUCTION                                         *mdserver-introduction*
+
+mdserver serves every markdown file of a project over HTTP: the files as a
+tree on the left, the rendered document on the right. Links between documents,
+headings, code highlighting and mermaid diagrams work, the page shows unsaved
+edits and follows the markdown buffer you are in.
+
+The server runs inside Neovim (|vim.uv|), so it stops when Neovim exits.
+
+==============================================================================
+2. INSTALLATION                                         *mdserver-installation*
+
+Requires Neovim 0.10+ and `curl`. `git` is optional.
+
+The browser libraries are pinned with their sha256 in `vendor.json` and
+installed into `vendor/` by `build.lua`. lazy.nvim runs it on install and
+update, `:Lazy build mdserver` runs it again. Otherwise use
+|:MdServer| `install`, or `nvim -l build.lua` in the plugin directory.
+
+$MDSERVER_CDN replaces the CDN (`https://cdn.jsdelivr.net/npm`).
+
+`:checkhealth mdserver` verifies the installation.
+
+==============================================================================
+3. COMMANDS                                                 *mdserver-commands*
+
+                                                                   *:MdServer*
+:MdServer [action] [arg]
+
+  (none)          Start, or open the browser on the current buffer.
+  start [root]    Serve [root], default: project root of the current buffer
+                  (see `root_markers`). Restarts when serving another root.
+  stop            Stop the server.
+  toggle          Start or stop.
+  open            Open the browser on the current markdown buffer.
+  status          Show the URL, the root and the connected browser tabs.
+  install[!]      Install the browser libraries. With ! download them again.
+
+==============================================================================
+4. CONFIGURATION                                       *mdserver-configuration*
+
+>lua
+  require("mdserver").setup({
+    host = "127.0.0.1",      -- "0.0.0.0" to reach it from another machine
+    port = nil,              -- nil: stable port derived from the root (8100-9099)
+    open_browser = true,     -- open the browser on start / :MdServer open
+    browser = nil,           -- command to open the URL with, e.g. { "firefox" }
+    follow = true,           -- the browser follows the markdown buffer
+    root_markers = { ".git", ".hg", ".jj" },
+    extensions = { "md", "markdown", "mdx" },
+    skip_dirs = { "node_modules", "vendor", "target", "build", "dist" },
+    debounce = 200,          -- ms between a buffer change and the refresh
+  })
+<
+`skip_dirs` only applies outside of git repositories, inside them the file
+list comes from `git ls-files` and honours `.gitignore`.
+
+Binding another host than localhost makes every file of the project readable
+from the network.
+
+==============================================================================
+5. LUA API                                                       *mdserver-api*
+
+require("mdserver").setup({opts})                          *mdserver.setup()*
+require("mdserver").start({root})                          *mdserver.start()*
+require("mdserver").stop({opts})                            *mdserver.stop()*
+    {opts}: `{ silent = boolean }`
+require("mdserver").toggle()                              *mdserver.toggle()*
+require("mdserver").open()                                  *mdserver.open()*
+require("mdserver").status()                              *mdserver.status()*
+require("mdserver").install({opts})                      *mdserver.install()*
+    {opts}: `{ force = boolean }`
+require("mdserver").is_running()                      *mdserver.is_running()*
+require("mdserver").url()                                    *mdserver.url()*
+    URL of the running server, or nil.
+require("mdserver").version                              *mdserver.version*
+    Version string of the plugin, e.g. "1.0.0".
+
+==============================================================================
+6. BROWSER                                                   *mdserver-browser*
+
+Keys in the page:
+
+  /     Filter the file tree (Enter opens the first match, Esc clears).
+  t     Toggle the file tree.
+  e     Open the current document in Neovim.
+
+Links to markdown files stay in the page, links to other project files (images,
+sources) load them as they are, links to other sites open in a new tab.
+
+ vim:tw=78:ts=8:ft=help:norl:

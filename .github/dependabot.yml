@@ -1,0 +1,12 @@
+# Versions of the GitHub actions used by the workflows. The browser libraries
+# are handled by .github/workflows/update-vendor.yml.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies

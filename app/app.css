@@ -1,0 +1,110 @@
+:root {
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0;
+  --side: #f6f8fa; --hover: #eaeef2; --active: #ddf4ff; --accent: #0969da;
+  --code: #f6f8fa; --ok: #1a7f37; --bad: #cf222e;
+  --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --border: #30363d;
+    --side: #010409; --hover: #161b22; --active: #1f2d3d; --accent: #4493f8;
+    --code: #161b22; --ok: #3fb950; --bad: #f85149;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  display: grid; grid-template-columns: var(--side-w, 300px) 4px 1fr; height: 100vh;
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+}
+body.collapsed { grid-template-columns: 0 0 1fr; }
+body.collapsed #side, body.collapsed #resize { visibility: hidden; }
+
+/* sidebar */
+#side { display: flex; flex-direction: column; min-width: 0; background: var(--side); border-right: 1px solid var(--border); }
+#side header { padding: 12px 12px 8px; }
+#project { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#filter {
+  width: 100%; margin-top: 8px; padding: 5px 8px; font: inherit; font-size: 13px;
+  color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; outline: none;
+}
+#filter:focus { border-color: var(--accent); }
+#tree { flex: 1; overflow: auto; padding: 0 6px 12px; font-size: 13.5px; }
+#tree ul { list-style: none; margin: 0; padding-left: 12px; }
+#tree > ul { padding-left: 0; }
+#tree li > .row {
+  display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px;
+  cursor: pointer; white-space: nowrap; color: inherit; text-decoration: none; user-select: none;
+}
+#tree .row:hover { background: var(--hover); }
+#tree .row.active { background: var(--active); color: var(--accent); font-weight: 600; }
+#tree .row .icon { width: 14px; flex: none; text-align: center; color: var(--muted); font-size: 10px; }
+#tree .row .name { overflow: hidden; text-overflow: ellipsis; }
+#tree li.dir > .row .name { font-weight: 500; }
+#tree li.dir.closed > ul { display: none; }
+#tree .empty { padding: 8px; color: var(--muted); }
+#resize { cursor: col-resize; background: transparent; }
+#resize:hover, #resize.drag { background: var(--accent); }
+
+/* main */
+#main { display: flex; flex-direction: column; min-width: 0; height: 100vh; }
+#bar {
+  display: flex; align-items: center; gap: 10px; padding: 8px 16px;
+  border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted);
+}
+#bar button {
+  font: inherit; color: var(--fg); background: var(--side); border: 1px solid var(--border);
+  border-radius: 6px; padding: 2px 10px; cursor: pointer;
+}
+#bar button:hover { border-color: var(--accent); }
+#crumbs { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+#crumbs a { color: inherit; text-decoration: none; }
+#crumbs a:hover { color: var(--accent); }
+#status { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+#status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+#status.down { color: var(--bad); }
+#status.down::before { background: var(--bad); }
+#scroll { flex: 1; overflow: auto; }
+#banner { display: none; padding: 8px 16px; background: var(--bad); color: #fff; font-size: 13px; }
+body.down #banner { display: block; }
+
+/* rendered markdown */
+#doc { max-width: 960px; margin: 0 auto; padding: 24px 40px 80px; overflow-wrap: break-word; }
+#doc > :first-child { margin-top: 0; }
+#doc h1, #doc h2, #doc h3, #doc h4, #doc h5, #doc h6 { margin: 24px 0 16px; font-weight: 600; line-height: 1.25; scroll-margin-top: 12px; }
+#doc h1 { font-size: 2em; padding-bottom: .3em; border-bottom: 1px solid var(--border); }
+#doc h2 { font-size: 1.5em; padding-bottom: .3em; border-bottom: 1px solid var(--border); }
+#doc h3 { font-size: 1.25em; } #doc h4 { font-size: 1em; } #doc h5 { font-size: .875em; }
+#doc h6 { font-size: .85em; color: var(--muted); }
+#doc :is(h1, h2, h3, h4, h5, h6) .anchor { margin-left: 6px; color: var(--muted); text-decoration: none; opacity: 0; font-weight: 400; }
+#doc :is(h1, h2, h3, h4, h5, h6):hover .anchor { opacity: 1; }
+#doc p, #doc ul, #doc ol, #doc blockquote, #doc table, #doc pre, #doc details { margin: 0 0 16px; }
+#doc a { color: var(--accent); text-decoration: none; }
+#doc a:hover { text-decoration: underline; }
+#doc a.missing { color: var(--bad); text-decoration: line-through; }
+#doc ul, #doc ol { padding-left: 2em; }
+#doc li + li { margin-top: .25em; }
+#doc li > input[type=checkbox] { margin: 0 .4em 0 -1.3em; vertical-align: middle; }
+#doc li:has(> input[type=checkbox]) { list-style: none; }
+#doc blockquote { padding: 0 1em; color: var(--muted); border-left: .25em solid var(--border); }
+#doc code { font-family: var(--mono); font-size: 85%; padding: .2em .4em; background: var(--code); border-radius: 6px; }
+#doc pre { padding: 16px; overflow: auto; background: var(--code); border-radius: 6px; line-height: 1.45; }
+#doc pre code { padding: 0; background: none; font-size: 85%; }
+#doc pre code.hljs { padding: 0; background: none; overflow: visible; }
+#doc .mermaid { margin: 0 0 16px; overflow: auto; text-align: center; }
+#doc .mermaid svg { max-width: 100%; height: auto; }
+#doc .mermaid.pending { padding: 16px; color: var(--muted); font-size: 13px; background: var(--code); border-radius: 6px; }
+#doc .mermaid.error { text-align: left; }
+#doc .mermaid.error pre { margin-bottom: 4px; }
+#doc .mermaid.error .msg { color: var(--bad); font-size: 13px; white-space: pre-wrap; }
+#doc table { border-collapse: collapse; display: block; width: max-content; max-width: 100%; overflow: auto; }
+#doc th, #doc td { padding: 6px 13px; border: 1px solid var(--border); }
+#doc tr:nth-child(2n) { background: var(--side); }
+#doc th { font-weight: 600; }
+#doc img { max-width: 100%; background: transparent; }
+#doc hr { height: .25em; margin: 24px 0; background: var(--border); border: 0; }
+#doc .frontmatter { font-size: 12.5px; color: var(--muted); }
+#doc .notfound { color: var(--muted); }
+#doc :target { background: var(--active); border-radius: 4px; }
+@media (max-width: 760px) { #doc { padding: 16px; } }

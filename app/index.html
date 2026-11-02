@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mdserver</title>
+<link rel="stylesheet" href="/_mdserver/app/app.css">
+<link rel="stylesheet" href="{{vendor:hljs-github.min.css}}" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="{{vendor:hljs-github-dark.min.css}}" media="(prefers-color-scheme: dark)">
+<script src="{{vendor:marked.umd.js}}"></script>
+<script src="{{vendor:highlight.min.js}}"></script>
+</head>
+<body>
+<nav id="side">
+  <header>
+    <div id="project">…</div>
+    <input id="filter" type="search" placeholder="Filter files  ( / )" autocomplete="off" spellcheck="false">
+  </header>
+  <div id="tree"></div>
+</nav>
+<div id="resize"></div>
+<main id="main">
+  <div id="bar">
+    <button id="toggle" title="Toggle file tree (t)">☰</button>
+    <div id="crumbs"></div>
+    <button id="edit" title="Open this file in Neovim (e)">Edit in Neovim</button>
+    <span id="status">live</span>
+  </div>
+  <div id="banner">Neovim server stopped. This page will reconnect when it is started again.</div>
+  <div id="scroll"><article id="doc"></article></div>
+</main>
+<script src="/_mdserver/app/app.js"></script>
+</body>
+</html>

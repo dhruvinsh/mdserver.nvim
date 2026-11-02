@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: stylua
+        uses: JohnnyMorganz/stylua-action@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: 2.6.0
+          args: --check lua plugin build.lua scripts
+
+      - name: selene
+        env:
+          SELENE_VERSION: 0.31.0
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/selene.zip" \
+            "https://github.com/Kampfkarren/selene/releases/download/$SELENE_VERSION/selene-light-$SELENE_VERSION-linux.zip"
+          unzip -q "$RUNNER_TEMP/selene.zip" -d "$RUNNER_TEMP/selene"
+          chmod +x "$RUNNER_TEMP/selene/selene"
+          "$RUNNER_TEMP/selene/selene" lua plugin build.lua scripts
+
+  test:
+    name: test (nvim ${{ matrix.nvim }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        nvim: [v0.10.4, stable, nightly]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.nvim }}
+
+      - name: Cache vendor/
+        uses: actions/cache@v6
+        with:
+          path: vendor
+          key: vendor-${{ hashFiles('vendor.json') }}
+
+      - name: Install browser libraries
+        run: nvim --clean -l build.lua
+
+      - name: Smoke test
+        run: nvim --clean -l scripts/smoke.lua
+
+      - name: Help tags
+        run: nvim --clean --headless -c "helptags doc" -c "quit"

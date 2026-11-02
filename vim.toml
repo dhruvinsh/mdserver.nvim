@@ -1,0 +1,10 @@
+[selene]
+base = "lua51"
+name = "vim"
+
+[vim]
+any = true
+
+# script arguments of `nvim -l`
+[arg]
+any = true
