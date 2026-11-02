@@ -24,6 +24,7 @@ vim.fn.writefile(
   project .. "/docs/guide/intro.md"
 )
 vim.fn.writefile({ "not an image" }, project .. "/docs/pic.png")
+vim.fn.writefile({ "0123456789" }, project .. "/docs/clip.mp4") -- 11 bytes with the newline
 
 local mdserver = require("mdserver")
 mdserver.setup({ open_browser = false, port = 0 })
@@ -37,10 +38,14 @@ end
 
 ---@param path string
 ---@param method? string
+---@param range? string Range header
 ---@return { code: integer, body: string, headers: string }
-local function request(path, method)
+local function request(path, method, range)
   local headers = vim.fn.tempname()
   local cmd = { "curl", "-s", "--path-as-is", "-D", headers, "-X", method or "GET", url .. path }
+  if range then
+    vim.list_extend(cmd, { "-H", "Range: " .. range })
+  end
   local res
   vim.system(cmd, { text = true }, function(r)
     res = r
@@ -81,6 +86,18 @@ check(
 check(request("/_mdserver/raw/docs/guide/intro.md").body:find("## Setup", 1, true), "raw markdown")
 check(request("/_mdserver/app/app.css").code == 200, "app files")
 check(request("/docs/pic.png").headers:find("image/png", 1, true), "project files keep their type")
+local video = request("/docs/clip.mp4")
+check(
+  video.headers:find("video/mp4", 1, true) and video.headers:find("Accept-Ranges: bytes", 1, true),
+  "video type and ranges"
+)
+local part = request("/docs/clip.mp4", nil, "bytes=2-4")
+check(part.code == 206 and part.body == "234" and part.headers:find("bytes 2-4/11", 1, true), "range")
+part = request("/docs/clip.mp4", nil, "bytes=-3")
+check(part.code == 206 and part.body == "89\n", "suffix range")
+part = request("/docs/clip.mp4", nil, "bytes=8-")
+check(part.code == 206 and part.body == "89\n", "open ended range")
+check(request("/docs/clip.mp4", nil, "bytes=50-").code == 416, "range past the end")
 check(request("/_mdserver/raw/../../../../etc/passwd").code == 403, "paths outside of the root are refused")
 check(request("/_mdserver/vendor/../build.lua").code == 404, "only vendor files from the manifest")
 check(request("/_mdserver/edit?path=README.md").code == 405, "edit needs POST")

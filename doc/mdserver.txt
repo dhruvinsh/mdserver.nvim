@@ -101,4 +101,11 @@ Keys in the page:
 Links to markdown files stay in the page, links to other project files (images,
 sources) load them as they are, links to other sites open in a new tab.
 
+                                                              *mdserver-media*
+Images resolve relative to the document, `/path` relative to the project root,
+URLs load from the web. Video and audio files (mp4, webm, mov, ogv, mp3, m4a,
+wav, ogg, flac) get a player when written with image syntax `![](demo.mp4)` or
+when their URL is alone on a line. A YouTube or Vimeo URL alone on a line is
+embedded. `<img>`, `<video>` and `<audio>` HTML is rendered as it is.
+
  vim:tw=78:ts=8:ft=help:norl:

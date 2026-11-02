@@ -17,19 +17,41 @@ M.PREFIX = "/_mdserver/"
 
 local app_dir = Vendor.root .. "/app"
 
+--- Largest answer to an open ended range (`bytes=N-`), players ask for the rest.
+local RANGE_CHUNK = 4 * 1024 * 1024
+
 local mime_types = {
+  -- pages
   css = "text/css; charset=utf-8",
-  gif = "image/gif",
   html = "text/html; charset=utf-8",
-  ico = "image/x-icon",
-  jpeg = "image/jpeg",
-  jpg = "image/jpeg",
   js = "text/javascript; charset=utf-8",
   json = "application/json; charset=utf-8",
   pdf = "application/pdf",
+  -- images
+  apng = "image/apng",
+  avif = "image/avif",
+  bmp = "image/bmp",
+  gif = "image/gif",
+  ico = "image/x-icon",
+  jpeg = "image/jpeg",
+  jpg = "image/jpeg",
   png = "image/png",
   svg = "image/svg+xml",
   webp = "image/webp",
+  -- video
+  m4v = "video/mp4",
+  mov = "video/quicktime",
+  mp4 = "video/mp4",
+  ogv = "video/ogg",
+  webm = "video/webm",
+  -- audio
+  flac = "audio/flac",
+  m4a = "audio/mp4",
+  mp3 = "audio/mpeg",
+  oga = "audio/ogg",
+  ogg = "audio/ogg",
+  opus = "audio/ogg",
+  wav = "audio/wav",
 }
 
 ---@param path string
@@ -54,6 +76,39 @@ end
 local function page()
   local html = assert(Project.read_file(app_dir .. "/index.html"), "app/index.html is missing")
   return (html:gsub("{{vendor:([%w%-%._]+)}}", vendor_url))
+end
+
+--- Serve a project file. Honours `Range: bytes=a-b`, which video and audio
+--- players need to seek (and Safari to play at all).
+---@param req mdserver.Request
+---@param path string
+---@param size integer
+local function serve_file(req, path, size)
+  local opts = { type = mime_type(path), headers = { ["Accept-Ranges"] = "bytes" } }
+  local first, last = (req.headers.range or ""):match("^bytes=(%d*)%-(%d*)$")
+  if not first or (first == "" and last == "") then
+    return Http.respond(req.client, 200, Project.read_file(path), opts)
+  end
+  local from, to
+  if first == "" then -- suffix: the last N bytes
+    from, to = math.max(size - tonumber(last), 0), size - 1
+  else
+    from = tonumber(first)
+    to = math.min(last == "" and from + RANGE_CHUNK - 1 or tonumber(last), size - 1)
+  end
+  if from > to or from >= size then
+    opts.headers["Content-Range"] = "bytes */" .. size
+    return Http.respond(req.client, 416, nil, opts)
+  end
+  local f = io.open(path, "rb")
+  if not f then
+    return Http.respond(req.client, 404)
+  end
+  f:seek("set", from)
+  local data = f:read(to - from + 1) or ""
+  f:close()
+  opts.headers["Content-Range"] = ("bytes %d-%d/%d"):format(from, from + #data - 1, size)
+  Http.respond(req.client, 206, data, opts)
 end
 
 ---@class mdserver.Session
@@ -136,7 +191,7 @@ function M.handler(session)
     end
     local stat = vim.uv.fs_stat(full)
     if stat and stat.type == "file" and not Project.is_markdown(full) then
-      return Http.respond(req.client, 200, Project.read_file(full), { type = mime_type(full) })
+      return serve_file(req, full, stat.size)
     end
     Http.respond(req.client, 200, page(), { type = mime_types.html })
   end

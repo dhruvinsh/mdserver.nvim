@@ -9,10 +9,12 @@ local MAX_HEADER = 16 * 1024
 local reasons = {
   [200] = "OK",
   [204] = "No Content",
+  [206] = "Partial Content",
   [400] = "Bad Request",
   [403] = "Forbidden",
   [404] = "Not Found",
   [405] = "Method Not Allowed",
+  [416] = "Range Not Satisfiable",
   [500] = "Internal Server Error",
 }
 
@@ -53,11 +55,13 @@ end
 ---@field method string
 ---@field path string decoded path
 ---@field query table<string, string>
+---@field headers table<string, string> lower-cased names
 ---@field client uv.uv_tcp_t
 
 ---@class mdserver.ResponseOpts
 ---@field type? string Content-Type
 ---@field cache? string Cache-Control, default "no-store"
+---@field headers? table<string, string|integer> extra headers
 
 ---@param client uv.uv_tcp_t
 ---@param status integer
@@ -76,9 +80,11 @@ function M.respond(client, status, body, opts)
     "Cache-Control: " .. (opts.cache or "no-store"),
     "X-Content-Type-Options: nosniff",
     "Connection: close",
-    "",
-    "",
   }
+  for name, value in pairs(opts.headers or {}) do
+    table.insert(head, name .. ": " .. value)
+  end
+  vim.list_extend(head, { "", "" })
   client:write(table.concat(head, "\r\n") .. body, function()
     client:shutdown(function()
       M.close(client)
@@ -141,9 +147,19 @@ local function on_connection(client, handler)
     if method ~= "GET" and method ~= "POST" then
       return M.respond(client, 405)
     end
+    local headers = {}
+    for name, value in buf:sub(1, buf:find("\r\n\r\n", 1, true)):gmatch("\r\n([%w%-]+):%s*([^\r]*)") do
+      headers[name:lower()] = value
+    end
     local path, query = target:match("^([^?#]*)%??([^#]*)")
     ---@type mdserver.Request
-    local req = { method = method, path = M.decode(path), query = M.parse_query(query), client = client }
+    local req = {
+      method = method,
+      path = M.decode(path),
+      query = M.parse_query(query),
+      headers = headers,
+      client = client,
+    }
     -- uv callbacks run in a fast event, most of the API needs the main loop
     vim.schedule(function()
       local ok, e = pcall(handler, req)

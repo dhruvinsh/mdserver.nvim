@@ -13,6 +13,9 @@ files as a tree on the left, the rendered document on the right.
   without the extension. Back/forward work, broken links are struck through.
 - GitHub flavoured markdown (tables, task lists, front matter), code highlighting
   (highlight.js), mermaid diagrams, light and dark theme.
+- Images and media: images relative to the document, to the project root
+  (`/img/x.png`) or online. Video and audio play from the project (with seeking)
+  or online, see [Images and media](#images-and-media).
 - Live: shows unsaved edits as you type and follows the markdown buffer you are in.
   "Edit in Neovim" opens the current document in Neovim.
 - Lazy by design: `plugin/` only creates the `:MdServer` command.
@@ -122,6 +125,22 @@ above and reload the page.
 | `:MdServer install[!]`    | install the browser libraries (`!` downloads again)            |
 
 In the browser: `/` filter files, `t` toggle the tree, `e` edit in Neovim.
+
+## Images and media
+
+| Markdown                                     | Result                                         |
+| -------------------------------------------- | ---------------------------------------------- |
+| `![](diagram.png)`, `![](../img/diagram.png)` | image relative to the document                 |
+| `![](/docs/img/diagram.png)`                 | image relative to the project root             |
+| `![](https://example.com/diagram.png)`       | online image                                   |
+| `<img src="..." width="200">`                | HTML works too, same paths                     |
+| `![demo](demo.mp4)`, `![](talk.mp3)`         | video / audio player (mp4, webm, mov, ogv, mp3, m4a, wav, ogg, flac) |
+| a video/audio URL alone on its line          | player, like GitHub does for video attachments |
+| a YouTube or Vimeo URL alone on its line     | embedded player (`?t=1m5s` start times work)   |
+| `<video src="demo.mp4" controls></video>`    | rendered as it is                              |
+
+A URL inside a sentence, or a `[named](demo.mp4)` link, stays a link. Files
+outside of the project root are not served.
 
 ## Configuration
 

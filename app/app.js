@@ -188,6 +188,8 @@ function renderMarkdown(path, text) {
     docEl.prepend(details);
   }
 
+  embedMedia();
+
   const slug = slugger();
   for (const h of docEl.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
     h.id = slug(h.textContent);
@@ -216,6 +218,85 @@ function renderMarkdown(path, text) {
 
   highlightCode();
   return renderDiagrams();
+}
+
+// ---------------------------------------------------------------- video and audio
+
+const VIDEO = /\.(mp4|m4v|webm|ogv|mov)$/i;
+const AUDIO = /\.(mp3|m4a|wav|ogg|oga|opus|flac)$/i;
+
+function mediaKind(src) {
+  let path;
+  try { path = new URL(src, location.href).pathname; } catch { return null; }
+  return VIDEO.test(path) ? "video" : AUDIO.test(path) ? "audio" : null;
+}
+
+function mediaPlayer(kind, src, title) {
+  const el = document.createElement(kind);
+  el.src = src;
+  el.controls = true;
+  el.preload = "metadata";
+  if (title) el.title = title;
+  return el;
+}
+
+/** YouTube / Vimeo page URL -> embeddable player URL. */
+function embedUrl(href) {
+  let url;
+  try { url = new URL(href); } catch { return null; }
+  const host = url.hostname.replace(/^(www|m)\./, "");
+  let id = null;
+  if (host === "youtu.be") id = url.pathname.slice(1);
+  else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+    id = url.searchParams.get("v") || url.pathname.match(/^\/(?:embed|shorts|live)\/([\w-]+)/)?.[1];
+  } else if (host === "vimeo.com") {
+    const vimeo = url.pathname.match(/^\/(\d+)/)?.[1];
+    return vimeo ? `https://player.vimeo.com/video/${vimeo}` : null;
+  }
+  if (!id || !/^[\w-]{6,}$/.test(id)) return null;
+  const embed = new URL(`https://www.youtube-nocookie.com/embed/${id}`);
+  const start = url.searchParams.get("t") || url.searchParams.get("start");
+  const seconds = start && (/^\d+$/.test(start) ? start
+    : (start.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/) || []).slice(1).reduce((s, n, i) => s + (+n || 0) * [3600, 60, 1][i], 0));
+  if (seconds) embed.searchParams.set("start", seconds);
+  return embed.href;
+}
+
+function embedFrame(src, title) {
+  const div = document.createElement("div");
+  div.className = "embed";
+  const frame = document.createElement("iframe");
+  frame.src = src;
+  frame.title = title;
+  frame.loading = "lazy";
+  frame.allow = "encrypted-media; picture-in-picture; fullscreen";
+  frame.referrerPolicy = "strict-origin-when-cross-origin";
+  div.append(frame);
+  return div;
+}
+
+/**
+ * Players for media that markdown has no syntax for:
+ * - `![title](clip.mp4)`: image syntax pointing at a video or audio file
+ * - a URL alone in its paragraph (like GitHub does for video attachments):
+ *   video/audio files get a player, YouTube and Vimeo pages their embedded player.
+ * `<video>`/`<audio>` HTML is rendered as it is.
+ */
+function embedMedia() {
+  for (const img of docEl.querySelectorAll("img[src]")) {
+    const kind = mediaKind(img.getAttribute("src"));
+    if (kind) img.replaceWith(mediaPlayer(kind, img.getAttribute("src"), img.alt));
+  }
+  for (const p of docEl.querySelectorAll("p")) {
+    const a = p.children.length === 1 && p.firstElementChild;
+    if (!a || a.tagName !== "A" || p.textContent.trim() !== a.textContent.trim()) continue;
+    const href = a.getAttribute("href");
+    if (a.textContent.trim() !== href) continue; // [text](url) stays a link
+    const kind = mediaKind(href);
+    const embed = !kind && embedUrl(href);
+    if (kind) p.replaceWith(mediaPlayer(kind, href));
+    else if (embed) p.replaceWith(embedFrame(embed, href));
+  }
 }
 
 // ---------------------------------------------------------------- code and diagrams
