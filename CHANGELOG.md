@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/dhruvinsh/mdserver.nvim/compare/mdserver.nvim-v1.0.0...mdserver.nvim-v1.1.0) (2026-11-02)
+
+
+### Features
+
+* **server:** add open! to serve the project on the network ([ab9c290](https://github.com/dhruvinsh/mdserver.nvim/commit/ab9c2900a97191ff87e7fb5c06556109ed0d343c))
+
 ## 1.0.0 (2026-11-02)
 
 
