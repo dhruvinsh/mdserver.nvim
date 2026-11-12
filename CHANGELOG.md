@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/dhruvinsh/mdserver.nvim/compare/mdserver.nvim-v1.1.0...mdserver.nvim-v1.2.0) (2026-11-12)
+
+
+### Features
+
+* **html:** show HTML files in the tree and render them in a frame ([3a14b84](https://github.com/dhruvinsh/mdserver.nvim/commit/3a14b8442b437330d339c18d53002eb4df8cb46e))
+
+
+### Bug Fixes
+
+* **deps:** update vendored browser libraries ([8d65dfd](https://github.com/dhruvinsh/mdserver.nvim/commit/8d65dfdfdf94bbbbe47ac7d444922cad06ac730a))
+* **deps:** update vendored browser libraries ([a97f9ad](https://github.com/dhruvinsh/mdserver.nvim/commit/a97f9ad0aa90488c7fb3d237f979a3a84726044c))
+
 ## [1.1.0](https://github.com/dhruvinsh/mdserver.nvim/compare/mdserver.nvim-v1.0.0...mdserver.nvim-v1.1.0) (2026-11-02)
 
 

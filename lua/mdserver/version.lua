@@ -1,2 +1,2 @@
 -- Updated by release-please on every release.
-return "1.1.0" -- x-release-please-version
+return "1.2.0" -- x-release-please-version
