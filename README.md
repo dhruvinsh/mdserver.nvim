@@ -3,8 +3,8 @@
 [![CI](https://github.com/dhruvinsh/mdserver.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/dhruvinsh/mdserver.nvim/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/dhruvinsh/mdserver.nvim)](https://github.com/dhruvinsh/mdserver.nvim/releases)
 
-Browse every markdown file of a project in the browser: the project's markdown
-files as a tree on the left, the rendered document on the right.
+Browse every markdown and HTML file of a project in the browser: the project's
+files as a tree on the left, the rendered document (or the HTML page) on the right.
 
 - The HTTP server runs **inside Neovim** (`vim.uv`), no node or python process: it
   stops when Neovim exits, and the page shows that it went away.
@@ -13,10 +13,13 @@ files as a tree on the left, the rendered document on the right.
   without the extension. Back/forward work, broken links are struck through.
 - GitHub flavoured markdown (tables, task lists, front matter), code highlighting
   (highlight.js), mermaid diagrams, light and dark theme.
+- HTML pages: listed in the tree and shown in a frame, with their own styles,
+  scripts and links, see [HTML pages](#html-pages).
 - Images and media: images relative to the document, to the project root
   (`/img/x.png`) or online. Video and audio play from the project (with seeking)
   or online, see [Images and media](#images-and-media).
-- Live: shows unsaved edits as you type and follows the markdown buffer you are in.
+- Live: shows unsaved edits as you type and follows the markdown or HTML buffer
+  you are in.
   "Edit in Neovim" opens the current document in Neovim.
 - Lazy by design: `plugin/` only creates the `:MdServer` command.
 
@@ -144,6 +147,27 @@ In the browser: `/` filter files, `t` toggle the tree, `e` edit in Neovim.
 A URL inside a sentence, or a `[named](demo.mp4)` link, stays a link. Files
 outside of the project root are not served.
 
+## HTML pages
+
+`.html` and `.htm` files appear in the tree next to the markdown files and open
+in a frame that fills the right side:
+
+- The page loads from `/_mdserver/raw/<path>`, so its relative style sheets,
+  scripts, images and links behave as when the file is opened on its own.
+- Following a link inside the page updates the URL, the tree and "Edit in
+  Neovim"; back/forward work. A link to a markdown file renders it.
+- "Open ↗" shows the page alone in a new tab.
+- Live: the page reloads (keeping its scroll position) as you edit it, and when
+  a file it loaded (css, js, images, ...) is saved in Neovim.
+- Markdown links to `.html` files open them in the frame, `<iframe src="chart.html">`
+  in a document shows the page itself.
+- Inside git repositories, generated pages that are git ignored (coverage
+  reports, built docs) are not in the tree, links to them still show them.
+
+Pages run with the server's origin, like every file it serves. Set
+`html_extensions = {}` to leave HTML files out of the tree and serve them as
+they are.
+
 ## Configuration
 
 Defaults:
@@ -154,9 +178,10 @@ require("mdserver").setup({
   port = nil,              -- nil: stable port derived from the project root (8100-9099)
   open_browser = true,     -- open the browser on start / :MdServer open
   browser = nil,           -- command to open the URL with, e.g. { "firefox", "--new-tab" }
-  follow = true,           -- browser follows the markdown buffer you are in
+  follow = true,           -- browser follows the markdown/HTML buffer you are in
   root_markers = { ".git", ".hg", ".jj" },
   extensions = { "md", "markdown", "mdx" },
+  html_extensions = { "html", "htm" }, -- pages shown in a frame, {} hides them
   skip_dirs = { "node_modules", "vendor", "target", "build", "dist", "__pycache__" },
   debounce = 200,          -- ms between a buffer change and the browser refresh
 })

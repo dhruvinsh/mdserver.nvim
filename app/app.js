@@ -4,10 +4,11 @@ const $ = (sel) => document.querySelector(sel);
 const docEl = $("#doc"), treeEl = $("#tree"), scrollEl = $("#scroll");
 
 const state = {
-  files: [],          // root-relative markdown paths
+  files: [],          // root-relative document paths: markdown and HTML
   index: new Map(),   // lower-cased path -> path
   current: null,      // path being shown
   loaded: false,
+  htmlRe: /\.html?$/i, // HTML pages, from the server's html_extensions
 };
 
 // ---------------------------------------------------------------- paths
@@ -22,12 +23,16 @@ function pathFromUrl(url) {
   return p.replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
-const INDEX_NAMES = ["readme.md", "index.md", "readme.markdown", "index.markdown"];
+const isMarkdownPath = (p) => /\.(md|markdown|mdx)$/i.test(p);
+const isHtmlPath = (p) => typeof p === "string" && state.htmlRe.test(p);
+const basename = (p) => p.slice(p.lastIndexOf("/") + 1);
 
-/** Markdown file for a root-relative path: exact, without extension, or a directory index. */
+const INDEX_NAMES = ["readme.md", "index.md", "readme.markdown", "index.markdown", "index.html", "index.htm"];
+
+/** Document for a root-relative path: exact, without extension, or a directory index. */
 function resolveDoc(p) {
   const key = p.toLowerCase();
-  for (const cand of [key, key + ".md", key + ".markdown"]) {
+  for (const cand of [key, key + ".md", key + ".markdown", key + ".html"]) {
     if (state.index.has(cand)) return state.index.get(cand);
   }
   const prefix = key ? key + "/" : "";
@@ -38,6 +43,12 @@ function resolveDoc(p) {
   if (!key) return state.files[0] ?? null;
   return state.files.find((f) => f.toLowerCase().startsWith(prefix)) ?? null;
 }
+
+/**
+ * Document to show for a path. HTML pages missing from the tree (git ignored,
+ * like generated reports) are still shown: the server knows whether they exist.
+ */
+const docFor = (p) => resolveDoc(p) ?? (isHtmlPath(p) ? p : null);
 
 // ---------------------------------------------------------------- tree
 
@@ -63,11 +74,11 @@ function renderTree() {
   const files = q ? state.files.filter((f) => f.toLowerCase().includes(q)) : state.files;
   treeEl.replaceChildren();
   if (!files.length) {
-    treeEl.innerHTML = `<div class="empty">${state.files.length ? "No match" : "No markdown files"}</div>`;
+    treeEl.innerHTML = `<div class="empty">${state.files.length ? "No match" : "No markdown or HTML files"}</div>`;
     return;
   }
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-  const base = (f) => f.slice(f.lastIndexOf("/") + 1);
+  const base = basename;
 
   const walk = (node, prefix) => {
     const ul = document.createElement("ul");
@@ -84,7 +95,7 @@ function renderTree() {
     for (const f of node.files.sort((a, b) => collator.compare(base(a), base(b)))) {
       const li = document.createElement("li");
       li.className = "file";
-      li.innerHTML = `<a class="row"><span class="icon">•</span><span class="name"></span></a>`;
+      li.innerHTML = `<a class="row"><span class="icon">${isHtmlPath(f) ? "◇" : "•"}</span><span class="name"></span></a>`;
       const a = li.firstChild;
       a.href = urlFor(f);
       a.dataset.path = f;
@@ -142,6 +153,8 @@ treeEl.addEventListener("click", (e) => {
 async function loadTree() {
   const res = await fetch(PREFIX + "tree");
   const data = await res.json();
+  const exts = (data.html_extensions ?? []).map((e) => e.replace(/[^\w]/g, ""));
+  state.htmlRe = exts.length ? new RegExp(`\\.(${exts.join("|")})$`, "i") : /(?!)/;
   state.files = data.files;
   state.index = new Map(data.files.map((f) => [f.toLowerCase(), f]));
   $("#project").textContent = data.name;
@@ -210,7 +223,7 @@ function renderMarkdown(path, text) {
       a.rel = "noopener noreferrer";
     } else if (!href.startsWith("#")) {
       const p = pathFromUrl(url);
-      if (isMarkdownPath(p) && !resolveDoc(p)) a.classList.add("missing");
+      if (isMarkdownPath(p) && !resolveDoc(p)) a.classList.add("missing"); // not HTML: may be git ignored
     }
   }
   // Task list checkboxes are read only.
@@ -390,9 +403,87 @@ function renderDiagrams() {
   return diagramQueue;
 }
 
-darkScheme.addEventListener("change", () => reloadCurrent());
+// Diagrams follow the theme; HTML pages see the change themselves.
+darkScheme.addEventListener("change", () => isHtmlPath(state.current) || reloadCurrent());
 
-const isMarkdownPath = (p) => /\.(md|markdown|mdx)$/i.test(p);
+// ---------------------------------------------------------------- HTML pages
+
+// Framed from the raw route, so the page's relative URLs (styles, scripts,
+// images, links to its sibling pages) load the files themselves, not this app.
+const RAW = PREFIX + "raw/";
+const rawUrl = (p) => RAW + encodePath(p);
+
+/** Root-relative path the frame shows, null when it left the project's raw files. */
+function framePath(frame) {
+  let loc;
+  try { loc = frame.contentWindow.location; } catch { return null; } // another origin
+  if (loc.origin !== location.origin || !loc.pathname.startsWith(RAW)) return null;
+  let p = loc.pathname.slice(RAW.length);
+  try { p = decodeURIComponent(p); } catch {}
+  return p.replace(/\/+$/, "");
+}
+
+function pageFrame(src) {
+  const frame = document.createElement("iframe");
+  frame.className = "page-frame";
+  frame.allowFullscreen = true;
+  frame.src = src;
+  frame.addEventListener("load", () => pageLoaded(frame));
+  return frame;
+}
+
+/** A link inside the page led to another page: the URL, tree and toolbar follow it. */
+function pageLoaded(frame) {
+  if (!frame.isConnected) return;
+  const p = framePath(frame);
+  if (!p) return;
+  if (!isHtmlPath(p)) {
+    // a relative link to a markdown document (render it rather than show its
+    // source) or to a directory (show its README or index.html); other files stay
+    const doc = resolveDoc(p);
+    if (doc) navigate(doc, frame.contentWindow.location.hash, true);
+    return;
+  }
+  if (p !== state.current) {
+    state.current = p;
+    // replace: the frame's navigation already made the history entry
+    history.replaceState({}, "", urlFor(p) + frame.contentWindow.location.hash);
+    showPath(p);
+  }
+  document.title = (frame.contentDocument?.title || basename(p)) + " · mdserver";
+}
+
+/** Reload the page in place: the new frame replaces the old one once loaded, at the same scroll position. */
+function reloadPage() {
+  const old = docEl.querySelector(".page-frame:not(.loading)");
+  if (!old) return;
+  docEl.querySelectorAll(".page-frame.loading").forEach((f) => f.remove()); // superseded reloads
+  let src = rawUrl(state.current), x = 0, y = 0;
+  if (framePath(old)) {
+    const win = old.contentWindow;
+    [src, x, y] = [win.location.href, win.scrollX, win.scrollY];
+  }
+  const frame = pageFrame(src);
+  frame.classList.add("loading");
+  frame.addEventListener("load", () => {
+    try { frame.contentWindow.scrollTo(x, y); } catch {}
+    frame.classList.remove("loading");
+    old.remove();
+  }, { once: true });
+  docEl.append(frame);
+}
+
+/** Whether the page loaded the project file `path` (a style sheet, script, image, ...). */
+function pageUses(path) {
+  const frame = docEl.querySelector(".page-frame:not(.loading)");
+  let entries;
+  try { entries = frame.contentWindow.performance.getEntriesByType("resource"); } catch { return true; }
+  return entries.some((e) => {
+    let p;
+    try { p = decodeURIComponent(new URL(e.name).pathname); } catch { return false; }
+    return p === "/" + path || p === RAW + path;
+  });
+}
 
 function scrollToHash(hash) {
   if (!hash || hash === "#") { scrollEl.scrollTop = 0; return; }
@@ -421,8 +512,18 @@ async function fetchDoc(path) {
   return res.text();
 }
 
+/** Title, crumbs, tree and toolbar for the document at `path`. */
+function showPath(path) {
+  const page = isHtmlPath(path);
+  document.body.classList.toggle("page", page);
+  if (page) $("#raw").href = rawUrl(path);
+  document.title = basename(path) + " · mdserver";
+  renderCrumbs(path);
+  markActive();
+}
+
 /**
- * Show `path` (root-relative markdown file), then scroll to `hash`.
+ * Show `path` (root-relative markdown or HTML file), then scroll to `hash`.
  * The URL is updated first so relative links and images resolve against the document.
  */
 async function navigate(path, hash, push) {
@@ -430,12 +531,21 @@ async function navigate(path, hash, push) {
   if (push && location.pathname + location.hash !== target) history.pushState({}, "", target);
   else if (!push) history.replaceState({}, "", target);
 
-  if (path === state.current && state.loaded) { scrollToHash(hash); return; }
+  const page = isHtmlPath(path);
+  if (path === state.current && state.loaded) {
+    if (!page) scrollToHash(hash);
+    else if (hash) try { docEl.querySelector(".page-frame").contentWindow.location.hash = hash; } catch {}
+    return;
+  }
   state.current = path;
   state.loaded = false;
-  document.title = path.slice(path.lastIndexOf("/") + 1) + " · mdserver";
-  renderCrumbs(path);
-  markActive();
+  showPath(path);
+  if (page) {
+    // a new frame each time: navigating an existing one adds a history entry of its own
+    docEl.replaceChildren(pageFrame(rawUrl(path) + (hash || "")));
+    state.loaded = true;
+    return;
+  }
   let diagrams;
   try {
     diagrams = renderMarkdown(path, await fetchDoc(path));
@@ -452,20 +562,22 @@ async function navigate(path, hash, push) {
 /** Navigate to whatever the current URL points at. */
 function route() {
   const p = pathFromUrl(location);
-  const doc = resolveDoc(p);
+  const doc = docFor(p);
   if (doc) return navigate(doc, location.hash, false);
   state.current = p;
   state.loaded = false;
+  document.body.classList.remove("page");
   renderCrumbs(p || "/");
   markActive();
   docEl.innerHTML = state.files.length
-    ? `<p class="notfound">No markdown file at <code></code>.</p>`
-    : `<p class="notfound">No markdown files in this project.</p>`;
+    ? `<p class="notfound">No markdown or HTML file at <code></code>.</p>`
+    : `<p class="notfound">No markdown or HTML files in this project.</p>`;
   docEl.querySelector("code")?.append(p || "/");
 }
 
 async function reloadCurrent() {
   if (!state.current || !state.loaded) return;
+  if (isHtmlPath(state.current)) return reloadPage();
   const top = scrollEl.scrollTop;
   try {
     const path = state.current;
@@ -485,7 +597,7 @@ docEl.addEventListener("click", (e) => {
   try { url = new URL(href, location.href); } catch { return; }
   if (url.origin !== location.origin) return;              // external: new tab
   if (url.pathname.startsWith(PREFIX)) return;
-  const doc = resolveDoc(pathFromUrl(url));
+  const doc = docFor(pathFromUrl(url));
   if (!doc) return;                                        // images, source files, ...: let the browser load them
   e.preventDefault();
   navigate(doc, url.hash, true);
@@ -494,13 +606,28 @@ docEl.addEventListener("click", (e) => {
 $("#crumbs").addEventListener("click", (e) => {
   const a = e.target.closest("a");
   if (!a || e.ctrlKey || e.metaKey) return;
-  const doc = resolveDoc(pathFromUrl(new URL(a.href)));
+  const doc = docFor(pathFromUrl(new URL(a.href)));
   if (!doc) return;
   e.preventDefault();
   navigate(doc, "", true);
 });
 
 window.addEventListener("popstate", route);
+
+// Called by the app page when it finds itself in a frame (index.html): a framed
+// page linked to a markdown document, which this app shows instead. True when
+// it did; HTML pages and other files stay in their frame.
+window.mdserver = {
+  open(href) {
+    let url;
+    try { url = new URL(href); } catch { return false; }
+    const p = pathFromUrl(url);
+    const doc = !isHtmlPath(p) && resolveDoc(p);
+    if (!doc) return false;
+    setTimeout(() => navigate(doc, url.hash, true)); // after the calling frame's script
+    return true;
+  },
+};
 
 // ---------------------------------------------------------------- toolbar
 
@@ -579,8 +706,15 @@ function connect() {
     if (path === state.current) reloadCurrent();
   });
   es.addEventListener("tree", () => loadTree());
+  es.addEventListener("asset", (e) => {
+    const { path } = JSON.parse(e.data);
+    if (isHtmlPath(state.current) && state.loaded && pageUses(path)) reloadPage();
+  });
 }
 
-loadTree().then(route).catch((err) => {
-  docEl.textContent = "Cannot reach the Neovim server: " + err.message;
-}).finally(connect);
+// Framed (see index.html), the page is on its way somewhere else.
+if (window.self === window.top) {
+  loadTree().then(route).catch((err) => {
+    docEl.textContent = "Cannot reach the Neovim server: " + err.message;
+  }).finally(connect);
+}

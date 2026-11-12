@@ -1,12 +1,14 @@
 -- HTTP routes. Everything outside of PREFIX is a path inside the project:
 --
---   /<path>                       markdown file or directory -> app page, other files -> raw bytes
---   /_mdserver/raw/<path>         file content (from the loaded buffer when there is one)
---   /_mdserver/tree               JSON: project name, markdown files, vendor URLs
+--   /<path>                       markdown/HTML file or directory -> app page, other files -> raw bytes
+--   /_mdserver/raw/<path>         file content (documents from the loaded buffer when there is one);
+--                                 the app frames HTML pages from here, so their relative URLs stay raw
+--   /_mdserver/tree               JSON: project name, documents, vendor URLs
 --   /_mdserver/events             server-sent events: follow / change / tree
 --   /_mdserver/edit?path=<path>   (POST) open the file in Neovim
 --   /_mdserver/app/<name>         the page's own files (app/)
 --   /_mdserver/vendor/<name>      libraries installed from vendor.json
+local Config = require("mdserver.config")
 local Http = require("mdserver.http")
 local Project = require("mdserver.project")
 local Vendor = require("mdserver.vendor")
@@ -23,10 +25,19 @@ local RANGE_CHUNK = 4 * 1024 * 1024
 local mime_types = {
   -- pages
   css = "text/css; charset=utf-8",
+  htm = "text/html; charset=utf-8",
   html = "text/html; charset=utf-8",
   js = "text/javascript; charset=utf-8",
   json = "application/json; charset=utf-8",
+  mjs = "text/javascript; charset=utf-8",
   pdf = "application/pdf",
+  wasm = "application/wasm",
+  xml = "application/xml; charset=utf-8",
+  -- fonts
+  otf = "font/otf",
+  ttf = "font/ttf",
+  woff = "font/woff",
+  woff2 = "font/woff2",
   -- images
   apng = "image/apng",
   avif = "image/avif",
@@ -59,6 +70,8 @@ local mime_types = {
 local function mime_type(path)
   if Project.is_markdown(path) then
     return "text/markdown; charset=utf-8"
+  elseif Project.is_html(path) then
+    return mime_types.html
   end
   local ext = (path:match("%.(%w+)$") or ""):lower()
   return mime_types[ext] or "text/plain; charset=utf-8"
@@ -137,6 +150,7 @@ local function api(session, req, route)
           root = session.root,
           name = vim.fs.basename(session.root),
           files = files,
+          html_extensions = Config.options.html_extensions,
           mermaid = vendor_url("mermaid.min.js"),
           missing = Vendor.missing(),
         }),
@@ -158,8 +172,16 @@ local function api(session, req, route)
     if not full then
       return Http.respond(client, 403)
     end
-    local data = Project.is_markdown(full) and Project.read(full) or Project.read_file(full)
-    return Http.respond(client, data and 200 or 404, data, { type = data and mime_type(full) or nil })
+    if Project.is_document(full) then
+      local data = Project.read(full)
+      return Http.respond(client, data and 200 or 404, data, { type = data and mime_type(full) or nil })
+    end
+    -- assets of framed HTML pages (styles, scripts, media): like project files
+    local stat = vim.uv.fs_stat(full)
+    if not stat or stat.type ~= "file" then
+      return Http.respond(client, 404)
+    end
+    return serve_file(req, full, stat.size)
   elseif vim.startswith(route, "app/") then
     local name = vim.fs.basename(route)
     local data = Project.read_file(app_dir .. "/" .. name)
@@ -183,14 +205,14 @@ function M.handler(session)
     if vim.startswith(req.path, M.PREFIX) then
       return api(session, req, req.path:sub(#M.PREFIX + 1))
     end
-    -- Project path: non-markdown files (images, ...) are served as they are, the app
-    -- handles the rest (markdown files, directories and paths it resolves itself).
+    -- Project path: files other than documents (images, ...) are served as they are, the
+    -- app handles the rest (markdown and HTML files, directories, paths it resolves itself).
     local full = Project.resolve(session.root, req.path:sub(2))
     if not full then
       return Http.respond(req.client, 403)
     end
     local stat = vim.uv.fs_stat(full)
-    if stat and stat.type == "file" and not Project.is_markdown(full) then
+    if stat and stat.type == "file" and not Project.is_document(full) then
       return serve_file(req, full, stat.size)
     end
     Http.respond(req.client, 200, page(), { type = mime_types.html })

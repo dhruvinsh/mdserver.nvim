@@ -7,7 +7,8 @@ local M = {}
 ---@field browser? string[] command to open the URL with (the URL is appended), default vim.ui.open
 ---@field follow boolean the browser follows the markdown buffer you are editing
 ---@field root_markers (string|string[])[] files/directories marking the project root, see vim.fs.root()
----@field extensions string[] file extensions shown in the tree
+---@field extensions string[] markdown file extensions shown in the tree
+---@field html_extensions string[] HTML file extensions shown in the tree (as a page in a frame), {} hides them
 ---@field skip_dirs string[] directories skipped outside of git repositories
 ---@field debounce integer ms between a buffer change and the browser refresh
 M.defaults = {
@@ -18,6 +19,7 @@ M.defaults = {
   follow = true,
   root_markers = { ".git", ".hg", ".jj" },
   extensions = { "md", "markdown", "mdx" },
+  html_extensions = { "html", "htm" },
   skip_dirs = { "node_modules", "vendor", "target", "build", "dist", "__pycache__" },
   debounce = 200,
 }

@@ -4,6 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>mdserver</title>
+<script>
+// The app inside a frame: a link in a framed HTML page (or an <iframe> in a
+// document) led to an app URL. Show the file itself, or let the app around it
+// navigate when that is a markdown document.
+if (self !== top) {
+  let app = null;
+  try { app = top.mdserver; } catch {}
+  if (!(app && app.open(location.href))) {
+    location.replace("/_mdserver/raw" + location.pathname + location.search + location.hash);
+  }
+}
+</script>
 <link rel="stylesheet" href="/_mdserver/app/app.css">
 <link rel="stylesheet" href="{{vendor:hljs-github.min.css}}" media="(prefers-color-scheme: light)">
 <link rel="stylesheet" href="{{vendor:hljs-github-dark.min.css}}" media="(prefers-color-scheme: dark)">
@@ -23,6 +35,7 @@
   <div id="bar">
     <button id="toggle" title="Toggle file tree (t)">☰</button>
     <div id="crumbs"></div>
+    <a id="raw" target="_blank" title="Open this page on its own, in a new tab">Open ↗</a>
     <button id="edit" title="Open this file in Neovim (e)">Edit in Neovim</button>
     <span id="status">live</span>
   </div>

@@ -1,4 +1,4 @@
--- The served project: root detection, path checks and the markdown file list.
+-- The served project: root detection, path checks and the document (markdown, HTML) list.
 local Config = require("mdserver.config")
 
 local uv = vim.uv
@@ -13,10 +13,30 @@ function M.detect_root(buf)
 end
 
 ---@param path string
+---@param exts string[]
+---@return boolean
+local function has_extension(path, exts)
+  local ext = path:match("%.(%w+)$")
+  return ext ~= nil and vim.tbl_contains(exts, ext:lower())
+end
+
+---@param path string
 ---@return boolean
 function M.is_markdown(path)
-  local ext = path:match("%.(%w+)$")
-  return ext ~= nil and vim.tbl_contains(Config.options.extensions, ext:lower())
+  return has_extension(path, Config.options.extensions)
+end
+
+---@param path string
+---@return boolean
+function M.is_html(path)
+  return has_extension(path, Config.options.html_extensions)
+end
+
+--- Files the tree shows and the app displays: markdown and HTML pages.
+---@param path string
+---@return boolean
+function M.is_document(path)
+  return M.is_markdown(path) or M.is_html(path)
 end
 
 ---@param root string
@@ -102,20 +122,20 @@ local function walk(root)
       end,
     })
   do
-    if kind == "file" and M.is_markdown(name) then
+    if kind == "file" and M.is_document(name) then
       table.insert(files, name)
     end
   end
   return files
 end
 
---- Markdown files below the root, sorted. Inside git repositories the list
+--- Markdown and HTML files below the root, sorted. Inside git repositories the list
 --- comes from git and honours .gitignore.
 ---@param root string
 ---@param callback fun(files: string[])
 function M.list(root, callback)
   local cmd = { "git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--" }
-  for _, ext in ipairs(Config.options.extensions) do
+  for _, ext in ipairs(vim.list_extend(vim.deepcopy(Config.options.extensions), Config.options.html_extensions)) do
     table.insert(cmd, "*." .. ext)
   end
 

@@ -1,4 +1,4 @@
--- mdserver: browse the markdown files of a project in the browser, as a file
+-- mdserver: browse the markdown and HTML files of a project in the browser, as a file
 -- tree next to the rendered document. The HTTP server runs inside Neovim
 -- (vim.uv), so it stops when Neovim exits.
 local Config = require("mdserver.config")
@@ -32,15 +32,22 @@ local function notify(msg, level)
   vim.notify(msg, level or vim.log.levels.INFO, { title = "mdserver" })
 end
 
---- Root-relative path of a markdown buffer inside the served project.
+--- Root-relative path of a file buffer inside the served project.
 ---@param buf integer
 ---@return string?
-local function buffer_path(buf)
+local function file_path(buf)
   if not state or not vim.api.nvim_buf_is_valid(buf) or vim.bo[buf].buftype ~= "" then
     return nil
   end
-  local name = vim.api.nvim_buf_get_name(buf)
-  return Project.is_markdown(name) and Project.relative(state.root, name) or nil
+  return Project.relative(state.root, vim.api.nvim_buf_get_name(buf))
+end
+
+--- Root-relative path of a document (markdown, HTML) buffer inside the served project.
+---@param buf integer
+---@return string?
+local function buffer_path(buf)
+  local path = file_path(buf)
+  return path and Project.is_document(path) and path or nil
 end
 
 local function flush_changes()
@@ -76,9 +83,19 @@ local function create_autocmds()
       end
     end,
   })
+  vim.api.nvim_create_autocmd("BufWritePost", {
+    group = group,
+    desc = "mdserver: reload HTML pages when one of their files (css, js, ...) is written",
+    callback = function(args)
+      local path = file_path(args.buf)
+      if path and state and not Project.is_document(path) then
+        Server.broadcast(state, "asset", { path = path })
+      end
+    end,
+  })
   vim.api.nvim_create_autocmd("BufEnter", {
     group = group,
-    desc = "mdserver: the browser follows the current markdown buffer",
+    desc = "mdserver: the browser follows the current document buffer",
     callback = function(args)
       local path = Config.options.follow and buffer_path(args.buf)
       if path and state and path ~= state.current then
@@ -137,7 +154,7 @@ function M.host()
   return state and state.host
 end
 
---- Point the browser at the current markdown buffer, or the project page.
+--- Point the browser at the current document buffer, or the project page.
 ---@param s mdserver.State
 local function show(s)
   local url = s.url .. "/" .. Http.encode_path(buffer_path(0) or "")
@@ -147,7 +164,7 @@ local function show(s)
   notify(url)
 end
 
---- Open the browser on the current markdown buffer, starting the server if needed.
+--- Open the browser on the current document buffer, starting the server if needed.
 --- The server is (re)bound to the configured host, or to all interfaces with
 --- `global`; the served root does not change.
 ---@param opts? { global?: boolean } bind to 0.0.0.0 instead of the configured host

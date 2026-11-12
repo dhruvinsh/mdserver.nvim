@@ -15,7 +15,7 @@ local function check(ok, msg)
   end
 end
 
--- A small project: nested docs and an image.
+-- A small project: nested docs, an image, media and an HTML page with its style sheet.
 local project = vim.fn.tempname()
 vim.fn.mkdir(project .. "/docs/guide", "p")
 vim.fn.writefile({ "# Top", "", "[intro](docs/guide/intro.md#setup)" }, project .. "/README.md")
@@ -25,6 +25,9 @@ vim.fn.writefile(
 )
 vim.fn.writefile({ "not an image" }, project .. "/docs/pic.png")
 vim.fn.writefile({ "0123456789" }, project .. "/docs/clip.mp4") -- 11 bytes with the newline
+vim.fn.mkdir(project .. "/site", "p")
+vim.fn.writefile({ '<link rel="stylesheet" href="style.css"><h1>Site</h1>' }, project .. "/site/index.html")
+vim.fn.writefile({ "h1 { color: red }" }, project .. "/site/style.css")
 
 local mdserver = require("mdserver")
 mdserver.setup({ open_browser = false, port = 0 })
@@ -64,7 +67,11 @@ local vendor = require("mdserver.vendor")
 local tree = request("/_mdserver/tree")
 local ok, data = pcall(vim.json.decode, tree.body)
 check(tree.code == 200 and ok, "tree returns JSON")
-check(ok and vim.deep_equal(data.files, { "README.md", "docs/guide/intro.md" }), "tree lists the markdown files")
+check(
+  ok and vim.deep_equal(data.files, { "README.md", "docs/guide/intro.md", "site/index.html" }),
+  "tree lists the markdown and HTML files"
+)
+check(ok and vim.deep_equal(data.html_extensions, { "html", "htm" }), "tree has the HTML extensions")
 check(ok and #data.missing == 0, "every vendor file is installed")
 
 local page = request("/docs/guide/intro.md")
@@ -84,6 +91,20 @@ check(
 )
 
 check(request("/_mdserver/raw/docs/guide/intro.md").body:find("## Setup", 1, true), "raw markdown")
+
+local html = request("/site/index.html")
+check(html.code == 200 and html.body:find("/_mdserver/app/app.js", 1, true), "HTML path serves the app")
+html = request("/_mdserver/raw/site/index.html")
+check(
+  html.code == 200 and html.headers:find("text/html", 1, true) and html.body:find("<h1>Site</h1>", 1, true),
+  "raw HTML page"
+)
+local css = request("/_mdserver/raw/site/style.css")
+check(css.code == 200 and css.headers:find("text/css", 1, true), "framed pages load their relative files")
+check(request("/site/style.css").headers:find("text/css", 1, true), "page files at their own path")
+local raw_part = request("/_mdserver/raw/docs/clip.mp4", nil, "bytes=2-4")
+check(raw_part.code == 206 and raw_part.body == "234", "ranges on the raw route")
+check(request("/_mdserver/raw/docs").code == 404, "raw directory")
 check(request("/_mdserver/app/app.css").code == 200, "app files")
 check(request("/docs/pic.png").headers:find("image/png", 1, true), "project files keep their type")
 local video = request("/docs/clip.mp4")
