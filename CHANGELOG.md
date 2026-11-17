@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/dhruvinsh/mdserver.nvim/compare/mdserver.nvim-v1.2.0...mdserver.nvim-v1.2.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** update vendored browser libraries ([27b8aa6](https://github.com/dhruvinsh/mdserver.nvim/commit/27b8aa6eac3af53b8ae079840bf5216935e76bfd))
+* **deps:** update vendored browser libraries ([fa4dcb8](https://github.com/dhruvinsh/mdserver.nvim/commit/fa4dcb879bfc6bb96b4a3c162f95bc01aad1443b))
+
 ## [1.2.0](https://github.com/dhruvinsh/mdserver.nvim/compare/mdserver.nvim-v1.1.0...mdserver.nvim-v1.2.0) (2026-11-12)
 
 
