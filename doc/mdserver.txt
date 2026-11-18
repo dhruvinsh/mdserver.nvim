@@ -23,7 +23,7 @@ The server runs inside Neovim (|vim.uv|), so it stops when Neovim exits.
 ==============================================================================
 2. INSTALLATION                                         *mdserver-installation*
 
-Requires Neovim 0.10+ and `curl`. `git` is optional.
+Requires Neovim 0.12+ and `curl`. `git` is optional.
 
 The browser libraries are pinned with their sha256 in `vendor.json` and
 installed into `vendor/` by `build.lua`. lazy.nvim runs it on install and

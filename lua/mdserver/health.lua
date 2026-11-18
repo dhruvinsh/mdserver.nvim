@@ -5,10 +5,10 @@ function M.check()
   local Vendor = require("mdserver.vendor")
 
   health.start("mdserver " .. require("mdserver.version") .. ": requirements")
-  if vim.fn.has("nvim-0.10") == 1 then
+  if vim.fn.has("nvim-0.12") == 1 then
     health.ok("Neovim " .. tostring(vim.version()))
   else
-    health.error("Neovim 0.10 or newer is required")
+    health.error("Neovim 0.12 or newer is required")
   end
   if vim.fn.executable("curl") == 1 then
     health.ok("`curl` found (installs the browser libraries)")

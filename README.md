@@ -27,7 +27,7 @@ files as a tree on the left, the rendered document (or the HTML page or PDF) on 
 
 ## Requirements
 
-- Neovim 0.10+
+- Neovim 0.12+
 - `curl` (installs the browser libraries)
 - `git` (optional: the tree honours `.gitignore`)
 
