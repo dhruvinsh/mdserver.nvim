@@ -3,8 +3,8 @@
 [![CI](https://github.com/dhruvinsh/mdserver.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/dhruvinsh/mdserver.nvim/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/dhruvinsh/mdserver.nvim)](https://github.com/dhruvinsh/mdserver.nvim/releases)
 
-Browse every markdown and HTML file of a project in the browser: the project's
-files as a tree on the left, the rendered document (or the HTML page) on the right.
+Browse every markdown, HTML and PDF file of a project in the browser: the project's
+files as a tree on the left, the rendered document (or the HTML page or PDF) on the right.
 
 - The HTTP server runs **inside Neovim** (`vim.uv`), no node or python process: it
   stops when Neovim exits, and the page shows that it went away.
@@ -15,6 +15,8 @@ files as a tree on the left, the rendered document (or the HTML page) on the rig
   (highlight.js), mermaid diagrams, light and dark theme.
 - HTML pages: listed in the tree and shown in a frame, with their own styles,
   scripts and links, see [HTML pages](#html-pages).
+- PDFs: listed in the tree and shown in the browser's own PDF viewer, reloaded
+  when they are rebuilt, see [PDFs](#pdfs).
 - Images and media: images relative to the document, to the project root
   (`/img/x.png`) or online. Video and audio play from the project (with seeking)
   or online, see [Images and media](#images-and-media).
@@ -168,6 +170,30 @@ Pages run with the server's origin, like every file it serves. Set
 `html_extensions = {}` to leave HTML files out of the tree and serve them as
 they are.
 
+## PDFs
+
+`.pdf` files appear in the tree and open in the browser's own PDF viewer, in a
+frame: zoom, search, print and the browser's annotation tools work. No library
+is downloaded for it.
+
+- `[paper](paper.pdf#page=3)` opens the PDF at page 3 (Firefox, Chrome and Brave
+  honour `#page=`).
+- Live: the viewer reloads when another program writes the file (LaTeX, typst,
+  ...). It starts again at the page in the URL: the browser's viewer doesn't
+  tell which page it was on.
+- Annotations (Firefox has highlight, text and drawing tools, Chromium browsers
+  a drawing tool) live in the viewer until you save them with its
+  save/download button. If the browser asks where to save, pick the original
+  file to keep them in the project; the viewer then reloads with them. Otherwise
+  the copy goes to your downloads folder. Unsaved annotations are lost when the
+  frame reloads: the PDF is rebuilt, you switch documents, or Neovim follows
+  another buffer.
+- "Edit in Neovim" is hidden for PDFs, and opening one in Neovim doesn't make the
+  browser follow. PDFs ignored by git (build output) are not in the tree, links to
+  them still show them.
+
+Set `pdf_extensions = {}` to leave PDFs out of the tree and serve them as they are.
+
 ## Configuration
 
 Defaults:
@@ -182,6 +208,7 @@ require("mdserver").setup({
   root_markers = { ".git", ".hg", ".jj" },
   extensions = { "md", "markdown", "mdx" },
   html_extensions = { "html", "htm" }, -- pages shown in a frame, {} hides them
+  pdf_extensions = { "pdf" }, -- shown in the browser's PDF viewer, {} hides them
   skip_dirs = { "node_modules", "vendor", "target", "build", "dist", "__pycache__" },
   debounce = 200,          -- ms between a buffer change and the browser refresh
 })

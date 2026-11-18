@@ -1,8 +1,8 @@
 -- HTTP routes. Everything outside of PREFIX is a path inside the project:
 --
---   /<path>                       markdown/HTML file or directory -> app page, other files -> raw bytes
+--   /<path>                       markdown/HTML/PDF file or directory -> app page, other files -> raw bytes
 --   /_mdserver/raw/<path>         file content (documents from the loaded buffer when there is one);
---                                 the app frames HTML pages from here, so their relative URLs stay raw
+--                                 the app frames HTML pages and PDFs from here, so relative URLs stay raw
 --   /_mdserver/tree               JSON: project name, documents, vendor URLs
 --   /_mdserver/events             server-sent events: follow / change / tree
 --   /_mdserver/edit?path=<path>   (POST) open the file in Neovim
@@ -13,6 +13,8 @@ local Http = require("mdserver.http")
 local Project = require("mdserver.project")
 local Vendor = require("mdserver.vendor")
 
+local uv = vim.uv
+
 local M = {}
 
 M.PREFIX = "/_mdserver/"
@@ -21,6 +23,9 @@ local app_dir = Vendor.root .. "/app"
 
 --- Largest answer to an open ended range (`bytes=N-`), players ask for the rest.
 local RANGE_CHUNK = 4 * 1024 * 1024
+
+--- ms without changes before a rebuilt PDF reloads: LaTeX and friends write it in pieces.
+local PDF_SETTLE = 500
 
 local mime_types = {
   -- pages
@@ -127,6 +132,64 @@ end
 ---@class mdserver.Session
 ---@field root string
 ---@field streams uv.uv_tcp_t[] open event streams
+---@field watchers? table<string, mdserver.Watcher> directories of the PDFs shown in a browser
+
+---@class mdserver.Watcher
+---@field handle uv.uv_fs_event_t
+---@field timer uv.uv_timer_t
+---@field names table<string, string> file name -> root-relative path of the PDFs watched
+---@field changed table<string, true> file names changed since the last broadcast
+
+--- Reload the PDF in the browser when another program (LaTeX, typst, the browser's own
+--- "save") writes it. Watches its directory: builds often replace the file rather than
+--- write to it, which a watch on the file itself would not see.
+---@param session mdserver.Session
+---@param full string absolute path, inside the root
+local function watch_pdf(session, full)
+  local dir, name = vim.fs.dirname(full), vim.fs.basename(full)
+  session.watchers = session.watchers or {}
+  local w = session.watchers[dir]
+  if not w then
+    local handle, timer = uv.new_fs_event(), uv.new_timer()
+    if not (handle and timer) then
+      return
+    end
+    local watcher = { handle = handle, timer = timer, names = {}, changed = {} }
+    local ok = handle:start(dir, {}, function(err, file)
+      if err or not file or not watcher.names[file] then
+        return
+      end
+      watcher.changed[file] = true
+      timer:start(PDF_SETTLE, 0, function()
+        vim.schedule(function()
+          for f in pairs(watcher.changed) do
+            M.broadcast(session, "change", { path = watcher.names[f] })
+          end
+          watcher.changed = {}
+        end)
+      end)
+    end)
+    if not ok then
+      Http.close(handle)
+      Http.close(timer)
+      return
+    end
+    w = watcher
+    session.watchers[dir] = w
+  end
+  w.names[name] = full:sub(#session.root + 2)
+end
+
+--- Stop the PDF watchers.
+---@param session mdserver.Session
+function M.unwatch(session)
+  for _, w in pairs(session.watchers or {}) do
+    w.timer:stop()
+    Http.close(w.timer)
+    Http.close(w.handle)
+  end
+  session.watchers = nil
+end
 
 ---@param session mdserver.Session
 ---@param req mdserver.Request
@@ -151,6 +214,7 @@ local function api(session, req, route)
           name = vim.fs.basename(session.root),
           files = files,
           html_extensions = Config.options.html_extensions,
+          pdf_extensions = Config.options.pdf_extensions,
           mermaid = vendor_url("mermaid.min.js"),
           missing = Vendor.missing(),
         }),
@@ -176,10 +240,13 @@ local function api(session, req, route)
       local data = Project.read(full)
       return Http.respond(client, data and 200 or 404, data, { type = data and mime_type(full) or nil })
     end
-    -- assets of framed HTML pages (styles, scripts, media): like project files
+    -- PDFs and the assets of framed HTML pages (styles, scripts, media): like project files
     local stat = vim.uv.fs_stat(full)
     if not stat or stat.type ~= "file" then
       return Http.respond(client, 404)
+    end
+    if Project.is_pdf(full) then
+      watch_pdf(session, full)
     end
     return serve_file(req, full, stat.size)
   elseif vim.startswith(route, "app/") then
@@ -206,13 +273,13 @@ function M.handler(session)
       return api(session, req, req.path:sub(#M.PREFIX + 1))
     end
     -- Project path: files other than documents (images, ...) are served as they are, the
-    -- app handles the rest (markdown and HTML files, directories, paths it resolves itself).
+    -- app handles the rest (markdown, HTML and PDF files, directories, paths it resolves itself).
     local full = Project.resolve(session.root, req.path:sub(2))
     if not full then
       return Http.respond(req.client, 403)
     end
     local stat = vim.uv.fs_stat(full)
-    if stat and stat.type == "file" and not Project.is_document(full) then
+    if stat and stat.type == "file" and not Project.is_listed(full) then
       return serve_file(req, full, stat.size)
     end
     Http.respond(req.client, 200, page(), { type = mime_types.html })

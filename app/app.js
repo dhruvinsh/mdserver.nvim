@@ -4,11 +4,12 @@ const $ = (sel) => document.querySelector(sel);
 const docEl = $("#doc"), treeEl = $("#tree"), scrollEl = $("#scroll");
 
 const state = {
-  files: [],          // root-relative document paths: markdown and HTML
+  files: [],          // root-relative document paths: markdown, HTML and PDF
   index: new Map(),   // lower-cased path -> path
   current: null,      // path being shown
   loaded: false,
   htmlRe: /\.html?$/i, // HTML pages, from the server's html_extensions
+  pdfRe: /\.pdf$/i,    // PDFs, from the server's pdf_extensions
 };
 
 // ---------------------------------------------------------------- paths
@@ -25,6 +26,7 @@ function pathFromUrl(url) {
 
 const isMarkdownPath = (p) => /\.(md|markdown|mdx)$/i.test(p);
 const isHtmlPath = (p) => typeof p === "string" && state.htmlRe.test(p);
+const isPdfPath = (p) => typeof p === "string" && state.pdfRe.test(p);
 const basename = (p) => p.slice(p.lastIndexOf("/") + 1);
 
 const INDEX_NAMES = ["readme.md", "index.md", "readme.markdown", "index.markdown", "index.html", "index.htm"];
@@ -45,10 +47,10 @@ function resolveDoc(p) {
 }
 
 /**
- * Document to show for a path. HTML pages missing from the tree (git ignored,
- * like generated reports) are still shown: the server knows whether they exist.
+ * Document to show for a path. HTML pages and PDFs missing from the tree (git
+ * ignored, like generated reports) are still shown: the server knows whether they exist.
  */
-const docFor = (p) => resolveDoc(p) ?? (isHtmlPath(p) ? p : null);
+const docFor = (p) => resolveDoc(p) ?? (isHtmlPath(p) || isPdfPath(p) ? p : null);
 
 // ---------------------------------------------------------------- tree
 
@@ -74,7 +76,7 @@ function renderTree() {
   const files = q ? state.files.filter((f) => f.toLowerCase().includes(q)) : state.files;
   treeEl.replaceChildren();
   if (!files.length) {
-    treeEl.innerHTML = `<div class="empty">${state.files.length ? "No match" : "No markdown or HTML files"}</div>`;
+    treeEl.innerHTML = `<div class="empty">${state.files.length ? "No match" : "No markdown, HTML or PDF files"}</div>`;
     return;
   }
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
@@ -95,7 +97,7 @@ function renderTree() {
     for (const f of node.files.sort((a, b) => collator.compare(base(a), base(b)))) {
       const li = document.createElement("li");
       li.className = "file";
-      li.innerHTML = `<a class="row"><span class="icon">${isHtmlPath(f) ? "◇" : "•"}</span><span class="name"></span></a>`;
+      li.innerHTML = `<a class="row"><span class="icon">${isHtmlPath(f) ? "◇" : isPdfPath(f) ? "▤" : "•"}</span><span class="name"></span></a>`;
       const a = li.firstChild;
       a.href = urlFor(f);
       a.dataset.path = f;
@@ -153,8 +155,12 @@ treeEl.addEventListener("click", (e) => {
 async function loadTree() {
   const res = await fetch(PREFIX + "tree");
   const data = await res.json();
-  const exts = (data.html_extensions ?? []).map((e) => e.replace(/[^\w]/g, ""));
-  state.htmlRe = exts.length ? new RegExp(`\\.(${exts.join("|")})$`, "i") : /(?!)/;
+  const extRe = (list) => {
+    const exts = (list ?? []).map((e) => e.replace(/[^\w]/g, ""));
+    return exts.length ? new RegExp(`\\.(${exts.join("|")})$`, "i") : /(?!)/;
+  };
+  state.htmlRe = extRe(data.html_extensions);
+  state.pdfRe = extRe(data.pdf_extensions);
   state.files = data.files;
   state.index = new Map(data.files.map((f) => [f.toLowerCase(), f]));
   $("#project").textContent = data.name;
@@ -403,8 +409,8 @@ function renderDiagrams() {
   return diagramQueue;
 }
 
-// Diagrams follow the theme; HTML pages see the change themselves.
-darkScheme.addEventListener("change", () => isHtmlPath(state.current) || reloadCurrent());
+// Diagrams follow the theme; HTML pages and PDF viewers see the change themselves.
+darkScheme.addEventListener("change", () => isFramed(state.current) || reloadCurrent());
 
 // ---------------------------------------------------------------- HTML pages
 
@@ -451,6 +457,20 @@ function pageLoaded(frame) {
     showPath(p);
   }
   document.title = (frame.contentDocument?.title || basename(p)) + " · mdserver";
+}
+
+// ---------------------------------------------------------------- PDFs
+
+// Shown by the browser's own viewer (zoom, search, highlights, save): a frame
+// on the raw file. `#page=3` and the like go to the viewer.
+const isFramed = (p) => isHtmlPath(p) || isPdfPath(p);
+
+function pdfFrame(path, hash) {
+  const frame = document.createElement("iframe");
+  frame.className = "page-frame";
+  frame.allowFullscreen = true;
+  frame.src = rawUrl(path) + (hash || "");
+  return frame;
 }
 
 /** Reload the page in place: the new frame replaces the old one once loaded, at the same scroll position. */
@@ -514,8 +534,9 @@ async function fetchDoc(path) {
 
 /** Title, crumbs, tree and toolbar for the document at `path`. */
 function showPath(path) {
-  const page = isHtmlPath(path);
+  const page = isFramed(path);
   document.body.classList.toggle("page", page);
+  document.body.classList.toggle("pdf", isPdfPath(path));
   if (page) $("#raw").href = rawUrl(path);
   document.title = basename(path) + " · mdserver";
   renderCrumbs(path);
@@ -532,6 +553,15 @@ async function navigate(path, hash, push) {
   else if (!push) history.replaceState({}, "", target);
 
   const page = isHtmlPath(path);
+  if (isPdfPath(path)) {
+    // a new frame for a new #page too: viewers don't all follow hash changes
+    const same = path === state.current && state.loaded;
+    state.current = path;
+    state.loaded = true;
+    if (!same) showPath(path);
+    if (!same || hash) docEl.replaceChildren(pdfFrame(path, hash));
+    return;
+  }
   if (path === state.current && state.loaded) {
     if (!page) scrollToHash(hash);
     else if (hash) try { docEl.querySelector(".page-frame").contentWindow.location.hash = hash; } catch {}
@@ -566,18 +596,21 @@ function route() {
   if (doc) return navigate(doc, location.hash, false);
   state.current = p;
   state.loaded = false;
-  document.body.classList.remove("page");
+  document.body.classList.remove("page", "pdf");
   renderCrumbs(p || "/");
   markActive();
   docEl.innerHTML = state.files.length
-    ? `<p class="notfound">No markdown or HTML file at <code></code>.</p>`
-    : `<p class="notfound">No markdown or HTML files in this project.</p>`;
+    ? `<p class="notfound">No markdown, HTML or PDF file at <code></code>.</p>`
+    : `<p class="notfound">No markdown, HTML or PDF files in this project.</p>`;
   docEl.querySelector("code")?.append(p || "/");
 }
 
 async function reloadCurrent() {
   if (!state.current || !state.loaded) return;
   if (isHtmlPath(state.current)) return reloadPage();
+  // rebuilt or saved: the viewer doesn't tell which page it was on, it starts
+  // over at the page in the URL (#page=N), if any
+  if (isPdfPath(state.current)) return docEl.replaceChildren(pdfFrame(state.current, location.hash));
   const top = scrollEl.scrollTop;
   try {
     const path = state.current;
@@ -616,13 +649,13 @@ window.addEventListener("popstate", route);
 
 // Called by the app page when it finds itself in a frame (index.html): a framed
 // page linked to a markdown document, which this app shows instead. True when
-// it did; HTML pages and other files stay in their frame.
+// it did; HTML pages, PDFs and other files stay in their frame.
 window.mdserver = {
   open(href) {
     let url;
     try { url = new URL(href); } catch { return false; }
     const p = pathFromUrl(url);
-    const doc = !isHtmlPath(p) && resolveDoc(p);
+    const doc = !isFramed(p) && resolveDoc(p);
     if (!doc) return false;
     setTimeout(() => navigate(doc, url.hash, true)); // after the calling frame's script
     return true;
@@ -632,7 +665,7 @@ window.mdserver = {
 // ---------------------------------------------------------------- toolbar
 
 $("#edit").addEventListener("click", () => {
-  if (state.current && state.loaded) fetch(PREFIX + "edit?path=" + encodeURIComponent(state.current), { method: "POST" });
+  if (state.current && state.loaded && !isPdfPath(state.current)) fetch(PREFIX + "edit?path=" + encodeURIComponent(state.current), { method: "POST" });
 });
 
 const toggleSide = () => {

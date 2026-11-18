@@ -1,4 +1,4 @@
--- mdserver: browse the markdown and HTML files of a project in the browser, as a file
+-- mdserver: browse the markdown, HTML and PDF files of a project in the browser, as a file
 -- tree next to the rendered document. The HTTP server runs inside Neovim
 -- (vim.uv), so it stops when Neovim exits.
 local Config = require("mdserver.config")
@@ -245,6 +245,7 @@ function M.stop(opts)
   for _, client in ipairs(s.streams) do
     Http.close(client)
   end
+  Server.unwatch(s)
   Http.close(s.server)
   if not (opts and opts.silent) then
     notify("stopped")

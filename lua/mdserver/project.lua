@@ -1,4 +1,4 @@
--- The served project: root detection, path checks and the document (markdown, HTML) list.
+-- The served project: root detection, path checks and the file list (markdown, HTML, PDF).
 local Config = require("mdserver.config")
 
 local uv = vim.uv
@@ -32,11 +32,24 @@ function M.is_html(path)
   return has_extension(path, Config.options.html_extensions)
 end
 
---- Files the tree shows and the app displays: markdown and HTML pages.
+---@param path string
+---@return boolean
+function M.is_pdf(path)
+  return has_extension(path, Config.options.pdf_extensions)
+end
+
+--- Text documents the app displays and follows in Neovim: markdown and HTML pages.
 ---@param path string
 ---@return boolean
 function M.is_document(path)
   return M.is_markdown(path) or M.is_html(path)
+end
+
+--- Files the tree shows and the app displays: documents and PDFs.
+---@param path string
+---@return boolean
+function M.is_listed(path)
+  return M.is_document(path) or M.is_pdf(path)
 end
 
 ---@param root string
@@ -122,21 +135,24 @@ local function walk(root)
       end,
     })
   do
-    if kind == "file" and M.is_document(name) then
+    if kind == "file" and M.is_listed(name) then
       table.insert(files, name)
     end
   end
   return files
 end
 
---- Markdown and HTML files below the root, sorted. Inside git repositories the list
+--- Markdown, HTML and PDF files below the root, sorted. Inside git repositories the list
 --- comes from git and honours .gitignore.
 ---@param root string
 ---@param callback fun(files: string[])
 function M.list(root, callback)
   local cmd = { "git", "-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--" }
-  for _, ext in ipairs(vim.list_extend(vim.deepcopy(Config.options.extensions), Config.options.html_extensions)) do
-    table.insert(cmd, "*." .. ext)
+  local o = Config.options
+  for _, exts in ipairs({ o.extensions, o.html_extensions, o.pdf_extensions }) do
+    for _, ext in ipairs(exts) do
+      table.insert(cmd, "*." .. ext)
+    end
   end
 
   local function done(files)

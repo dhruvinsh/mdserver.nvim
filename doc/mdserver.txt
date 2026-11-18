@@ -1,4 +1,4 @@
-*mdserver.txt*  Browse the markdown and HTML files of a project in the browser
+*mdserver.txt*  Browse the markdown, HTML and PDF files of a project in the browser
 
 ==============================================================================
 CONTENTS                                                    *mdserver-contents*
@@ -13,9 +13,9 @@ CONTENTS                                                    *mdserver-contents*
 ==============================================================================
 1. INTRODUCTION                                         *mdserver-introduction*
 
-mdserver serves every markdown and HTML file of a project over HTTP: the files
-as a tree on the left, the rendered document (or the HTML page, in a frame) on
-the right. Links between documents, headings, code highlighting and mermaid
+mdserver serves every markdown, HTML and PDF file of a project over HTTP: the
+files as a tree on the left, the rendered document (or the HTML page or PDF, in
+a frame) on the right. Links between documents, headings, code highlighting and mermaid
 diagrams work, the page shows unsaved edits and follows the buffer you are in.
 
 The server runs inside Neovim (|vim.uv|), so it stops when Neovim exits.
@@ -69,6 +69,7 @@ The bang can follow the command or the action: `:MdServer! open` and
     root_markers = { ".git", ".hg", ".jj" },
     extensions = { "md", "markdown", "mdx" },
     html_extensions = { "html", "htm" }, -- pages shown in a frame, {} hides them
+    pdf_extensions = { "pdf" }, -- shown in the browser's viewer, {} hides them
     skip_dirs = { "node_modules", "vendor", "target", "build", "dist" },
     debounce = 200,          -- ms between a buffer change and the refresh
   })
@@ -112,7 +113,7 @@ Keys in the page:
   t     Toggle the file tree.
   e     Open the current document in Neovim.
 
-Links to markdown and HTML files stay in the page, links to other project files
+Links to markdown, HTML and PDF files stay in the page, links to other project files
 (images, sources) load them as they are, links to other sites open in a new tab.
 
                                                               *mdserver-html*
@@ -124,6 +125,22 @@ shows the page alone in a new tab. The page reloads, keeping its scroll
 position, as its buffer changes and when a file it loaded (css, js, ...) is
 saved in Neovim. HTML pages ignored by git are not in the tree, links to them
 still show them. Pages run with the server's origin, like the files it serves.
+
+                                                               *mdserver-pdf*
+PDF files are listed in the tree and shown in the browser's own PDF viewer, in
+a frame: zoom, search, print, and the annotation tools the browser has. No
+library is involved. `[paper](paper.pdf#page=3)` opens at page 3. The viewer
+reloads when another program writes the file (LaTeX, typst, ...); it starts
+again at the page in the URL, the viewer doesn't tell which page it was on.
+
+Annotations (the highlight and drawing tools of the browser's viewer) stay in
+the viewer until saved with its save/download button. When the browser asks
+where to save, choose the original file to keep them in the project, the
+viewer then reloads with them. Unsaved annotations are lost when the frame
+reloads: the PDF is rebuilt, another document is shown, or Neovim follows
+another buffer. "Edit in Neovim" is hidden for
+PDFs, and they are not followed from Neovim. PDFs ignored by git (build
+output) are not in the tree, links to them still show them.
 
                                                               *mdserver-media*
 Images resolve relative to the document, `/path` relative to the project root,

@@ -15,7 +15,7 @@ local function check(ok, msg)
   end
 end
 
--- A small project: nested docs, an image, media and an HTML page with its style sheet.
+-- A small project: nested docs, an image, media, a PDF and an HTML page with its style sheet.
 local project = vim.fn.tempname()
 vim.fn.mkdir(project .. "/docs/guide", "p")
 vim.fn.writefile({ "# Top", "", "[intro](docs/guide/intro.md#setup)" }, project .. "/README.md")
@@ -25,6 +25,7 @@ vim.fn.writefile(
 )
 vim.fn.writefile({ "not an image" }, project .. "/docs/pic.png")
 vim.fn.writefile({ "0123456789" }, project .. "/docs/clip.mp4") -- 11 bytes with the newline
+vim.fn.writefile({ "%PDF-1.4", "%%EOF" }, project .. "/docs/paper.pdf")
 vim.fn.mkdir(project .. "/site", "p")
 vim.fn.writefile({ '<link rel="stylesheet" href="style.css"><h1>Site</h1>' }, project .. "/site/index.html")
 vim.fn.writefile({ "h1 { color: red }" }, project .. "/site/style.css")
@@ -68,10 +69,11 @@ local tree = request("/_mdserver/tree")
 local ok, data = pcall(vim.json.decode, tree.body)
 check(tree.code == 200 and ok, "tree returns JSON")
 check(
-  ok and vim.deep_equal(data.files, { "README.md", "docs/guide/intro.md", "site/index.html" }),
-  "tree lists the markdown and HTML files"
+  ok and vim.deep_equal(data.files, { "README.md", "docs/guide/intro.md", "docs/paper.pdf", "site/index.html" }),
+  "tree lists the markdown, HTML and PDF files"
 )
 check(ok and vim.deep_equal(data.html_extensions, { "html", "htm" }), "tree has the HTML extensions")
+check(ok and vim.deep_equal(data.pdf_extensions, { "pdf" }), "tree has the PDF extensions")
 check(ok and #data.missing == 0, "every vendor file is installed")
 
 local page = request("/docs/guide/intro.md")
@@ -102,6 +104,41 @@ check(
 local css = request("/_mdserver/raw/site/style.css")
 check(css.code == 200 and css.headers:find("text/css", 1, true), "framed pages load their relative files")
 check(request("/site/style.css").headers:find("text/css", 1, true), "page files at their own path")
+local pdf = request("/docs/paper.pdf")
+check(pdf.code == 200 and pdf.body:find("/_mdserver/app/app.js", 1, true), "PDF path serves the app")
+pdf = request("/_mdserver/raw/docs/paper.pdf")
+check(
+  pdf.code == 200 and pdf.headers:find("application/pdf", 1, true) and vim.startswith(pdf.body, "%PDF-1.4"),
+  "raw PDF"
+)
+check(request("/_mdserver/raw/docs/paper.pdf", nil, "bytes=1-3").body == "PDF", "ranges on raw PDFs")
+
+-- The PDF was shown (raw route above): rewriting it on disk, as a LaTeX build or the
+-- browser's "save" does, tells the browser to reload it.
+local events = ""
+local stream = vim.system({ "curl", "-sN", "--max-time", "5", url .. "/_mdserver/events" }, {
+  stdout = function(_, chunk)
+    events = events .. (chunk or "")
+  end,
+})
+vim.wait(2000, function()
+  return events:find("retry:", 1, true) ~= nil
+end, 10)
+vim.fn.writefile({ "%PDF-1.4", "rebuilt", "%%EOF" }, project .. "/docs/paper.pdf")
+local reloaded = vim.wait(3000, function()
+  return events:find('event: change\ndata: {"path":"docs/paper.pdf"}', 1, true) ~= nil
+end, 10)
+check(reloaded, "rewritten PDF reloads")
+-- typst and others write a temporary file and rename it over the PDF
+events = ""
+vim.fn.writefile({ "%PDF-1.4", "renamed", "%%EOF" }, project .. "/docs/.paper.tmp")
+vim.uv.fs_rename(project .. "/docs/.paper.tmp", project .. "/docs/paper.pdf")
+reloaded = vim.wait(3000, function()
+  return events:find('event: change\ndata: {"path":"docs/paper.pdf"}', 1, true) ~= nil
+end, 10)
+check(reloaded, "PDF replaced by a rename reloads")
+stream:kill(15)
+
 local raw_part = request("/_mdserver/raw/docs/clip.mp4", nil, "bytes=2-4")
 check(raw_part.code == 206 and raw_part.body == "234", "ranges on the raw route")
 check(request("/_mdserver/raw/docs").code == 404, "raw directory")

@@ -9,6 +9,7 @@ local M = {}
 ---@field root_markers (string|string[])[] files/directories marking the project root, see vim.fs.root()
 ---@field extensions string[] markdown file extensions shown in the tree
 ---@field html_extensions string[] HTML file extensions shown in the tree (as a page in a frame), {} hides them
+---@field pdf_extensions string[] PDF file extensions shown in the tree (in the browser's PDF viewer), {} hides them
 ---@field skip_dirs string[] directories skipped outside of git repositories
 ---@field debounce integer ms between a buffer change and the browser refresh
 M.defaults = {
@@ -20,6 +21,7 @@ M.defaults = {
   root_markers = { ".git", ".hg", ".jj" },
   extensions = { "md", "markdown", "mdx" },
   html_extensions = { "html", "htm" },
+  pdf_extensions = { "pdf" },
   skip_dirs = { "node_modules", "vendor", "target", "build", "dist", "__pycache__" },
   debounce = 200,
 }
