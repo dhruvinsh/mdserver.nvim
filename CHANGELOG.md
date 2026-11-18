@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/dhruvinsh/mdserver.nvim/compare/mdserver.nvim-v1.2.1...mdserver.nvim-v1.3.0) (2026-11-18)
+
+
+### Features
+
+* **pdf:** show PDF files in the tree and the browser's PDF viewer ([202dd1c](https://github.com/dhruvinsh/mdserver.nvim/commit/202dd1c7afa2973e605899d6b9f40a465f5eb66d))
+
 ## [1.2.1](https://github.com/dhruvinsh/mdserver.nvim/compare/mdserver.nvim-v1.2.0...mdserver.nvim-v1.2.1) (2026-11-17)
 
 
