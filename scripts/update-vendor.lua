@@ -11,20 +11,26 @@ local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 local vendor = dofile(root .. "/lua/mdserver/vendor.lua")
 local manifest = vendor.manifest()
 
----@param cmd string[]
----@return string
-local function run(cmd)
-  local res = vim.system(cmd, { text = true }):wait()
-  if res.code ~= 0 then
-    error(("%s failed: %s"):format(table.concat(cmd, " "), res.stderr), 0)
+---@param url string
+---@return string body
+local function get(url)
+  local done, err, body
+  vim.net.request(url, {}, function(e, res)
+    err, body, done = e, res and res.body, true
+  end)
+  vim.wait(60000, function()
+    return done
+  end, 50)
+  if not done or err then
+    error(("%s: %s"):format(url, err and vim.trim(err) or "timed out"), 0)
   end
-  return res.stdout
+  return body
 end
 
 ---@param package string
 ---@return string
 local function latest(package)
-  local data = run({ "curl", "-sSfL", "https://data.jsdelivr.com/v1/packages/npm/" .. package .. "/resolved" })
+  local data = get("https://data.jsdelivr.com/v1/packages/npm/" .. package .. "/resolved")
   return assert(vim.json.decode(data).version, "cannot resolve " .. package)
 end
 
@@ -45,7 +51,10 @@ for _, file in ipairs(manifest.files) do
     local version = versions[file.package]
     local tmp = vim.fn.tempname()
     local url = ("%s/%s@%s/%s"):format(manifest.cdn, file.package, version, file.path)
-    run({ "curl", "-sSfL", "-o", tmp, url })
+    local err = vendor.download({ { url = url, outpath = tmp } })[1]
+    if err then
+      error(("%s: %s"):format(url, err), 0)
+    end
     local hash = assert(vendor.hash(tmp))
     os.remove(tmp)
     if version ~= file.version or hash ~= file.sha256 then
@@ -69,19 +78,9 @@ for _, file in ipairs(manifest.files) do
   end
 end
 
--- Keep the hand-written layout of vendor.json.
-local out = { "{", ('  "cdn": %s,'):format(vim.json.encode(manifest.cdn)), '  "files": [' }
-for i, file in ipairs(manifest.files) do
-  table.insert(out, "    {")
-  local keys = { "name", "package", "version", "path", "sha256" }
-  for k, key in ipairs(keys) do
-    table.insert(out, ("      %q: %s%s"):format(key, vim.json.encode(file[key]), k < #keys and "," or ""))
-  end
-  table.insert(out, "    }" .. (i < #manifest.files and "," or ""))
-end
-vim.list_extend(out, { "  ]", "}", "" })
+-- Sorted keys and a fixed indent: updates only change the lines that changed.
 local f = assert(io.open(root .. "/vendor.json", "w"))
-f:write(table.concat(out, "\n"))
+f:write(vim.json.encode(manifest, { indent = "  ", sort_keys = true }), "\n")
 f:close()
 local summary = vim.env.MDSERVER_UPDATE_SUMMARY
 if summary and summary ~= "" then

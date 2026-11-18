@@ -126,11 +126,11 @@ end
 
 ---@param url string
 local function open_url(url)
-  local cmd = Config.options.browser
-  if cmd then
-    vim.system(vim.list_extend(vim.deepcopy(cmd), { url }), { detach = true })
-  else
-    vim.ui.open(url)
+  -- vim.ui.open appends the URL to `cmd`: give it a copy
+  local cmd = Config.options.browser and vim.deepcopy(Config.options.browser)
+  local ok, proc, err = pcall(vim.ui.open, url, { cmd = cmd })
+  if not ok or not proc then
+    notify(("cannot open the browser: %s"):format(ok and err or proc), vim.log.levels.WARN)
   end
 end
 

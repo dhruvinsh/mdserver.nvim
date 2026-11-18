@@ -101,6 +101,34 @@ end
 ---@field force? boolean download even when the installed file matches
 ---@field log? fun(msg: string)
 
+--- Longest wait for the downloads to finish.
+local TIMEOUT = 5 * 60 * 1000
+
+--- Download URLs into files, all at once (|vim.net.request()|, which runs curl).
+---@param downloads { url: string, outpath: string }[]
+---@return (string|false)[] errors error message of each download, false when it worked
+function M.download(downloads)
+  local errors, pending, requests = {}, #downloads, {}
+  for i, d in ipairs(downloads) do
+    requests[i] = vim.net.request(d.url, { outpath = d.outpath, retry = 2 }, function(err)
+      -- fast context: only record the result
+      errors[i] = err and vim.trim(err) or false
+      pending = pending - 1
+    end)
+  end
+  if not vim.wait(TIMEOUT, function()
+    return pending == 0
+  end, 50) then
+    for i, request in ipairs(requests) do
+      if errors[i] == nil then
+        request.close()
+        errors[i] = "timed out"
+      end
+    end
+  end
+  return errors
+end
+
 --- Download every file of the manifest that is missing or outdated, verify its
 --- checksum and move it into vendor/. Raises an error when anything failed.
 ---@param opts? mdserver.InstallOpts
@@ -120,33 +148,28 @@ function M.install(opts)
     else
       local url = M.url(file)
       log("download    " .. url)
-      table.insert(jobs, {
-        file = file,
-        dest = dest,
-        part = dest .. ".part",
-        proc = vim.system({ "curl", "-sSfL", "--retry", "2", "--connect-timeout", "20", "-o", dest .. ".part", url }),
-      })
+      table.insert(jobs, { file = file, dest = dest, url = url, outpath = dest .. ".part" })
     end
   end
 
+  local results = M.download(jobs)
   local errors = {}
-  for _, job in ipairs(jobs) do
-    local res = job.proc:wait()
-    local hash = res.code == 0 and M.hash(job.part)
-    if res.code ~= 0 then
-      table.insert(errors, ("%s: %s"):format(job.file.name, vim.trim(res.stderr or "curl failed")))
+  for i, job in ipairs(jobs) do
+    local hash = not results[i] and M.hash(job.outpath)
+    if results[i] then
+      table.insert(errors, ("%s: %s"):format(job.file.name, results[i]))
     elseif hash ~= job.file.sha256 then
       table.insert(
         errors,
         ("%s: checksum mismatch\n  expected %s\n  got      %s"):format(job.file.name, job.file.sha256, hash)
       )
     else
-      local ok, err = os.rename(job.part, job.dest)
+      local ok, err = os.rename(job.outpath, job.dest)
       if not ok then
         table.insert(errors, ("%s: %s"):format(job.file.name, err))
       end
     end
-    os.remove(job.part)
+    os.remove(job.outpath)
   end
 
   if #errors > 0 then

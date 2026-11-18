@@ -78,8 +78,7 @@ local function mime_type(path)
   elseif Project.is_html(path) then
     return mime_types.html
   end
-  local ext = (path:match("%.(%w+)$") or ""):lower()
-  return mime_types[ext] or "text/plain; charset=utf-8"
+  return mime_types[vim.fs.ext(path):lower()] or "text/plain; charset=utf-8"
 end
 
 --- Versioned URL of a vendor file: the version changes the URL, so the browser may cache it.
@@ -177,7 +176,7 @@ local function watch_pdf(session, full)
     w = watcher
     session.watchers[dir] = w
   end
-  w.names[name] = full:sub(#session.root + 2)
+  w.names[name] = assert(vim.fs.relpath(session.root, full))
 end
 
 --- Stop the PDF watchers.

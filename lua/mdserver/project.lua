@@ -16,8 +16,7 @@ end
 ---@param exts string[]
 ---@return boolean
 local function has_extension(path, exts)
-  local ext = path:match("%.(%w+)$")
-  return ext ~= nil and vim.tbl_contains(exts, ext:lower())
+  return vim.tbl_contains(exts, vim.fs.ext(path):lower())
 end
 
 ---@param path string
@@ -56,7 +55,7 @@ end
 ---@param path string
 ---@return boolean
 local function inside(root, path)
-  return path == root or path:sub(1, #root + 1) == root .. "/"
+  return vim.fs.relpath(root, path) ~= nil
 end
 
 --- Absolute path of a root-relative path, nil when it escapes the root
@@ -87,11 +86,8 @@ function M.relative(root, path)
   if path == "" then
     return nil
   end
-  local real = uv.fs_realpath(path) or vim.fs.normalize(path)
-  if real:sub(1, #root + 1) ~= root .. "/" then
-    return nil
-  end
-  return real:sub(#root + 2)
+  local rel = vim.fs.relpath(root, uv.fs_realpath(path) or path)
+  return rel ~= "." and rel or nil
 end
 
 ---@param path string

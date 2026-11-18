@@ -4,37 +4,37 @@
     {
       "name": "marked.umd.js",
       "package": "marked",
-      "version": "18.2.1",
       "path": "lib/marked.umd.js",
-      "sha256": "bb95d4c15f1289f78486eaacebf3bb18688475ed58a040ef762ed49337090542"
+      "sha256": "bb95d4c15f1289f78486eaacebf3bb18688475ed58a040ef762ed49337090542",
+      "version": "18.2.1"
     },
     {
       "name": "highlight.min.js",
       "package": "@highlightjs/cdn-assets",
-      "version": "11.12.0",
       "path": "highlight.min.js",
-      "sha256": "8ab71eb09c51f501e5e25157d9cff100e46cc29bcbfc744d0b746d451fca7f53"
+      "sha256": "8ab71eb09c51f501e5e25157d9cff100e46cc29bcbfc744d0b746d451fca7f53",
+      "version": "11.12.0"
     },
     {
       "name": "hljs-github.min.css",
       "package": "@highlightjs/cdn-assets",
-      "version": "11.12.0",
       "path": "styles/github.min.css",
-      "sha256": "3a9a5def8b9c311e5ae43abde85c63133185eed4f0d9f67fea4b00a8308cf066"
+      "sha256": "3a9a5def8b9c311e5ae43abde85c63133185eed4f0d9f67fea4b00a8308cf066",
+      "version": "11.12.0"
     },
     {
       "name": "hljs-github-dark.min.css",
       "package": "@highlightjs/cdn-assets",
-      "version": "11.12.0",
       "path": "styles/github-dark.min.css",
-      "sha256": "9f208d022102b1d0c7aebfecd8e42ca7997d5de636649d2b31ea63093d809019"
+      "sha256": "9f208d022102b1d0c7aebfecd8e42ca7997d5de636649d2b31ea63093d809019",
+      "version": "11.12.0"
     },
     {
       "name": "mermaid.min.js",
       "package": "mermaid",
-      "version": "12.3.0",
       "path": "dist/mermaid.min.js",
-      "sha256": "336df803d87a38b70a01e736e666c8f7601d2ce42f5e47c8fafe5d721074b9a3"
+      "sha256": "336df803d87a38b70a01e736e666c8f7601d2ce42f5e47c8fafe5d721074b9a3",
+      "version": "12.3.0"
     }
   ]
 }
