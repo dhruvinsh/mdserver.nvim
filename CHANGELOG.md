@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/dhruvinsh/mdserver.nvim/compare/mdserver.nvim-v1.3.0...mdserver.nvim-v2.0.0) (2026-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* Neovim 0.10 and 0.11 are no longer supported.
+
+### Features
+
+* require Neovim 0.12 ([14696dc](https://github.com/dhruvinsh/mdserver.nvim/commit/14696dc16361724c03a8654f9d33a0bd150a2096))
+
 ## [1.3.0](https://github.com/dhruvinsh/mdserver.nvim/compare/mdserver.nvim-v1.2.1...mdserver.nvim-v1.3.0) (2026-11-18)
 
 
